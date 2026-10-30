@@ -13,10 +13,13 @@ import android.os.Looper
 import android.speech.RecognizerIntent
 import android.text.InputType
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import java.io.File
@@ -27,6 +30,8 @@ class MainActivity : Activity() {
     private lateinit var input: EditText
     private lateinit var recBtn: Button
     private lateinit var status: TextView
+    private lateinit var amountInput: EditText
+    private var type = Store.TYPE_NOTE
 
     private var recorder: MediaRecorder? = null
     private var audioFile: File? = null
@@ -66,7 +71,41 @@ class MainActivity : Activity() {
                 InputType.TYPE_TEXT_FLAG_MULTI_LINE or
                 InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
         }
+        amountInput = EditText(this).apply {
+            hint = "סכום (₪)"
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            visibility = View.GONE
+        }
+
+        // בורר סוג: הערה / הוצאה / שיפור לאפליקציה
+        val kinds = listOf(
+            Triple(Store.TYPE_NOTE, "📝 הערה", "מה הרעיון?"),
+            Triple(Store.TYPE_EXPENSE, "💸 הוצאה", "על מה ההוצאה? (פירוט)"),
+            Triple(Store.TYPE_FEEDBACK, "🛠 שיפור", "מה לתקן או לשפר באפליקציה?")
+        )
+        val byId = HashMap<Int, Triple<String, String, String>>()
+        val group = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL }
+        var firstId = 0
+        for (k in kinds) {
+            val rb = RadioButton(this).apply {
+                text = k.second
+                id = View.generateViewId()
+            }
+            if (firstId == 0) firstId = rb.id
+            byId[rb.id] = k
+            group.addView(rb)
+        }
+        group.setOnCheckedChangeListener { _, checkedId ->
+            val k = byId[checkedId] ?: return@setOnCheckedChangeListener
+            type = k.first
+            input.hint = k.third
+            amountInput.visibility = if (type == Store.TYPE_EXPENSE) View.VISIBLE else View.GONE
+        }
+
+        root.addView(group)
+        root.addView(amountInput)
         root.addView(input)
+        group.check(firstId)
 
         status = TextView(this).apply { setPadding(0, dp(6), 0, dp(6)) }
         root.addView(status)
@@ -186,11 +225,18 @@ class MainActivity : Activity() {
     private fun save() {
         if (recorder != null) stopRecording()
         val text = input.text.toString().trim()
-        if (text.isEmpty() && audioFile == null) {
+        var amount: Double? = null
+        if (type == Store.TYPE_EXPENSE) {
+            amount = amountInput.text.toString().trim().replace(',', '.').toDoubleOrNull()
+            if (amount == null || amount <= 0.0) {
+                Toast.makeText(this, "הכנס סכום להוצאה", Toast.LENGTH_SHORT).show()
+                return
+            }
+        } else if (text.isEmpty() && audioFile == null) {
             Toast.makeText(this, "אין מה לשמור", Toast.LENGTH_SHORT).show()
             return
         }
-        Store.save(this, text, audioFile)
+        Store.save(this, text, audioFile, type, amount)
         saved = true
         Toast.makeText(this, "נשמר ✓", Toast.LENGTH_SHORT).show()
         finish()
