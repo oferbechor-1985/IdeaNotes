@@ -126,6 +126,8 @@ class MainActivity : Activity() {
         root.addView(row2)
 
         setContentView(root)
+
+        if (savedInstanceState == null) UpdateChecker.check(this)
     }
 
     // ---------- הקלטה ----------
