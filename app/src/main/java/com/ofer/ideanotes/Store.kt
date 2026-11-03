@@ -19,14 +19,27 @@ object Store {
         val amount: Double?,
         val tags: List<String>,
         val audio: File?,
-        val body: String
+        val body: String,
+        // הוצאה במטבע זר: המטבע, הסכום המקורי והשער ששימש להמרה לשקלים
+        val origCurrency: String? = null,
+        val origAmount: Double? = null,
+        val rate: Double? = null
     ) {
+        fun isForeign(): Boolean = origCurrency != null && origCurrency != "ILS"
+
+        fun foreignText(): String =
+            if (isForeign()) String.format(Locale.US, "%.2f %s", origAmount ?: 0.0, origCurrency) else ""
+
         fun summary(): String {
             val mic = if (audio != null) "  🎙" else ""
             val first = body.lineSequence().firstOrNull().orEmpty().take(80)
             val tagLine = tags.joinToString(" ") { "#$it" }
             val lines = when (type) {
-                TYPE_EXPENSE -> listOf("💸 " + money(amount ?: 0.0) + "  ·  " + date + mic, first, tagLine)
+                TYPE_EXPENSE -> listOf(
+                    "💸 " + money(amount ?: 0.0) + (if (isForeign()) " (${foreignText()})" else "") +
+                        "  ·  " + date + mic,
+                    first, tagLine
+                )
                 TYPE_FEEDBACK -> listOf("🛠 שיפור  ·  " + date + mic, first)
                 else -> listOf(date + mic, tagLine, first)
             }
@@ -52,7 +65,10 @@ object Store {
         text: String,
         audio: File?,
         type: String = TYPE_NOTE,
-        amount: Double? = null
+        amount: Double? = null,
+        origCurrency: String? = null,
+        origAmount: Double? = null,
+        rate: Double? = null
     ): File {
         val base = audio?.nameWithoutExtension ?: newBase()
         val date = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
@@ -61,7 +77,13 @@ object Store {
         sb.append("תאריך: ").append(date).append('\n')
         sb.append("סוג: ").append(type).append('\n')
         if (type == TYPE_EXPENSE && amount != null) {
+            // סכום: תמיד בשקלים. במטבע זר נשמרים גם המקור והשער.
             sb.append("סכום: ").append(String.format(Locale.US, "%.2f", amount)).append('\n')
+            if (origCurrency != null && origCurrency != "ILS" && origAmount != null && rate != null) {
+                sb.append("מטבע מקור: ").append(origCurrency).append('\n')
+                sb.append("סכום מקור: ").append(String.format(Locale.US, "%.2f", origAmount)).append('\n')
+                sb.append("שער: ").append(String.format(Locale.US, "%.4f", rate)).append('\n')
+            }
         }
         sb.append("תגיות: ").append(tags.joinToString(", ")).append('\n')
         if (audio != null) sb.append("שמע: ").append(audio.name).append('\n')
@@ -91,6 +113,9 @@ object Store {
         var date = f.nameWithoutExtension
         var type = TYPE_NOTE
         var amount: Double? = null
+        var origCurrency: String? = null
+        var origAmount: Double? = null
+        var rate: Double? = null
         var tags = emptyList<String>()
         var audio: File? = null
         for (line in header.lines()) {
@@ -98,6 +123,9 @@ object Store {
                 line.startsWith("תאריך: ") -> date = line.removePrefix("תאריך: ")
                 line.startsWith("סוג: ") -> type = line.removePrefix("סוג: ").trim()
                 line.startsWith("סכום: ") -> amount = line.removePrefix("סכום: ").trim().toDoubleOrNull()
+                line.startsWith("מטבע מקור: ") -> origCurrency = line.removePrefix("מטבע מקור: ").trim()
+                line.startsWith("סכום מקור: ") -> origAmount = line.removePrefix("סכום מקור: ").trim().toDoubleOrNull()
+                line.startsWith("שער: ") -> rate = line.removePrefix("שער: ").trim().toDoubleOrNull()
                 line.startsWith("תגיות: ") -> tags = line.removePrefix("תגיות: ")
                     .split(",").map { it.trim() }.filter { it.isNotEmpty() }
                 line.startsWith("שמע: ") -> {
@@ -106,7 +134,7 @@ object Store {
                 }
             }
         }
-        return Note(f, date, type, amount, tags, audio, body)
+        return Note(f, date, type, amount, tags, audio, body, origCurrency, origAmount, rate)
     }
 
     /** טבלת הוצאות: expenses.csv בתוך תיקיית ההערות. נפתחת באקסל / Google Sheets.
@@ -114,11 +142,16 @@ object Store {
     fun writeExpensesCsv(c: Context): File {
         val rows = list(c).filter { it.type == TYPE_EXPENSE }.sortedBy { it.date }
         val sb = StringBuilder("\uFEFF") // BOM כדי שאקסל יציג עברית נכון
-        sb.append("תאריך,סכום,פירוט,תגיות\r\n")
+        sb.append("תאריך,סכום (₪),פירוט,מטבע מקור,סכום מקור,שער,תגיות\r\n")
         for (r in rows) {
+            val ils = r.amount ?: 0.0
+            val foreign = r.isForeign()
             sb.append(r.date).append(',')
-                .append(String.format(Locale.US, "%.2f", r.amount ?: 0.0)).append(',')
+                .append(String.format(Locale.US, "%.2f", ils)).append(',')
                 .append(csv(r.body.replace("\n", " "))).append(',')
+                .append(if (foreign) r.origCurrency else "ILS").append(',')
+                .append(String.format(Locale.US, "%.2f", if (foreign) (r.origAmount ?: ils) else ils)).append(',')
+                .append(if (foreign && r.rate != null) String.format(Locale.US, "%.4f", r.rate) else "1").append(',')
                 .append(csv(r.tags.joinToString(" "))).append("\r\n")
         }
         val f = File(dir(c), "expenses.csv")

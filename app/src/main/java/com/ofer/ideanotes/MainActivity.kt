@@ -11,7 +11,9 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.speech.RecognizerIntent
+import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -23,6 +25,7 @@ import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import java.io.File
+import java.util.Locale
 
 /** החלון המהיר: נפתח ישר מהאייקון, המקלדת כבר פתוחה. */
 class MainActivity : Activity() {
@@ -30,7 +33,7 @@ class MainActivity : Activity() {
     private lateinit var input: EditText
     private lateinit var recBtn: Button
     private lateinit var status: TextView
-    private lateinit var amountInput: EditText
+    private lateinit var preview: TextView
     private var type = Store.TYPE_NOTE
 
     private var recorder: MediaRecorder? = null
@@ -71,16 +74,17 @@ class MainActivity : Activity() {
                 InputType.TYPE_TEXT_FLAG_MULTI_LINE or
                 InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
         }
-        amountInput = EditText(this).apply {
-            hint = "סכום (₪)"
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+        // תצוגה מקדימה של מה שזוהה בהוצאה (סכום, מטבע, תיאור)
+        preview = TextView(this).apply {
+            textSize = 16f
+            setPadding(0, dp(4), 0, dp(4))
             visibility = View.GONE
         }
 
         // בורר סוג: הערה / הוצאה / שיפור לאפליקציה
         val kinds = listOf(
             Triple(Store.TYPE_NOTE, "📝 הערה", "מה הרעיון?"),
-            Triple(Store.TYPE_EXPENSE, "💸 הוצאה", "על מה ההוצאה? (פירוט)"),
+            Triple(Store.TYPE_EXPENSE, "💸 הוצאה", "למשל: 30 שקל עבור שוארמה / 10 דולר עבור קפה"),
             Triple(Store.TYPE_FEEDBACK, "🛠 שיפור", "מה לתקן או לשפר באפליקציה?")
         )
         val byId = HashMap<Int, Triple<String, String, String>>()
@@ -99,13 +103,18 @@ class MainActivity : Activity() {
             val k = byId[checkedId] ?: return@setOnCheckedChangeListener
             type = k.first
             input.hint = k.third
-            amountInput.visibility = if (type == Store.TYPE_EXPENSE) View.VISIBLE else View.GONE
+            updatePreview()
         }
 
         root.addView(group)
-        root.addView(amountInput)
         root.addView(input)
+        root.addView(preview)
         group.check(firstId)
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: Editable?) = updatePreview()
+        })
 
         status = TextView(this).apply { setPadding(0, dp(6), 0, dp(6)) }
         root.addView(status)
@@ -127,7 +136,32 @@ class MainActivity : Activity() {
 
         setContentView(root)
 
-        if (savedInstanceState == null) UpdateChecker.check(this)
+        if (savedInstanceState == null) {
+            Rates.refresh(this)
+            UpdateChecker.check(this)
+        }
+    }
+
+    // ---------- זיהוי הוצאה ----------
+
+    private fun updatePreview() {
+        if (type != Store.TYPE_EXPENSE) {
+            preview.visibility = View.GONE
+            return
+        }
+        preview.visibility = View.VISIBLE
+        val raw = input.text.toString()
+        val p = Expense.parse(raw)
+        preview.text = when {
+            raw.isBlank() -> ""
+            p == null -> "⚠ לא זיהיתי סכום"
+            else -> {
+                val rate = Rates.ilsPer(this, p.currency)
+                val ils = if (rate != null) Store.money(p.amount * rate) else "אין שער המרה"
+                val orig = if (p.currency != "ILS") String.format(Locale.US, "  (%.2f %s)", p.amount, p.currency) else ""
+                "💸 $ils$orig  ·  " + p.description.ifEmpty { "ללא פירוט" }
+            }
+        }
     }
 
     // ---------- הקלטה ----------
@@ -227,18 +261,34 @@ class MainActivity : Activity() {
     private fun save() {
         if (recorder != null) stopRecording()
         val text = input.text.toString().trim()
+        var textToSave = text
         var amount: Double? = null
+        var origCur: String? = null
+        var origAmt: Double? = null
+        var rate: Double? = null
         if (type == Store.TYPE_EXPENSE) {
-            amount = amountInput.text.toString().trim().replace(',', '.').toDoubleOrNull()
-            if (amount == null || amount <= 0.0) {
-                Toast.makeText(this, "הכנס סכום להוצאה", Toast.LENGTH_SHORT).show()
+            // הסכום, המטבע והתיאור מזוהים אוטומטית מהטקסט; המרה לשקלים לפי השער השמור
+            val p = Expense.parse(text)
+            if (p == null) {
+                Toast.makeText(this, "לא זיהיתי סכום. כתוב למשל: 30 שקל עבור שוארמה", Toast.LENGTH_LONG).show()
                 return
             }
+            val r = Rates.ilsPer(this, p.currency)
+            if (r == null) {
+                Toast.makeText(this, "אין שער המרה שמור ל-${p.currency}. התחבר לרשת ונסה שוב", Toast.LENGTH_LONG).show()
+                Rates.refresh(this, force = true)
+                return
+            }
+            amount = Math.round(p.amount * r * 100) / 100.0
+            origCur = p.currency
+            origAmt = p.amount
+            rate = r
+            textToSave = p.description
         } else if (text.isEmpty() && audioFile == null) {
             Toast.makeText(this, "אין מה לשמור", Toast.LENGTH_SHORT).show()
             return
         }
-        Store.save(this, text, audioFile, type, amount)
+        Store.save(this, textToSave, audioFile, type, amount, origCur, origAmt, rate)
         saved = true
         Toast.makeText(this, "נשמר ✓", Toast.LENGTH_SHORT).show()
         finish()

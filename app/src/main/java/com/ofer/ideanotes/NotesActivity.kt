@@ -17,6 +17,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import java.io.File
+import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -135,7 +136,15 @@ class NotesActivity : Activity() {
 
     private fun showNote(n: Store.Note) {
         val sb = StringBuilder()
-        if (n.type == Store.TYPE_EXPENSE) sb.append("סכום: ").append(Store.money(n.amount ?: 0.0)).append("\n\n")
+        if (n.type == Store.TYPE_EXPENSE) {
+            sb.append("סכום: ").append(Store.money(n.amount ?: 0.0))
+            if (n.isForeign()) {
+                sb.append("  (").append(n.foreignText())
+                n.rate?.let { sb.append(String.format(Locale.US, ", שער %.4f", it)) }
+                sb.append(")")
+            }
+            sb.append("\n\n")
+        }
         if (n.type == Store.TYPE_FEEDBACK) sb.append("🛠 שיפור לאפליקציה\n\n")
         if (n.tags.isNotEmpty()) sb.append(n.tags.joinToString(" ") { "#$it" }).append("\n\n")
         sb.append(n.body)
