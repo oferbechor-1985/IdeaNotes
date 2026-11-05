@@ -2,6 +2,7 @@ package com.ofer.ideanotes
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -19,12 +20,15 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import java.io.File
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** החלון המהיר: נפתח ישר מהאייקון, המקלדת כבר פתוחה. */
@@ -85,6 +89,7 @@ class MainActivity : Activity() {
         val kinds = listOf(
             Triple(Store.TYPE_NOTE, "📝 הערה", "מה הרעיון?"),
             Triple(Store.TYPE_EXPENSE, "💸 הוצאה", "למשל: 30 שקל עבור שוארמה / 10 דולר עבור קפה"),
+            Triple(Store.TYPE_EVENT, "📅 אירוע", "למשל: מחר ב-16:00 פגישה עם דנה"),
             Triple(Store.TYPE_FEEDBACK, "🛠 שיפור", "מה לתקן או לשפר באפליקציה?")
         )
         val byId = HashMap<Int, Triple<String, String, String>>()
@@ -106,7 +111,10 @@ class MainActivity : Activity() {
             updatePreview()
         }
 
-        root.addView(group)
+        root.addView(HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(group)
+        })
         root.addView(input)
         root.addView(preview)
         group.check(firstId)
@@ -145,12 +153,21 @@ class MainActivity : Activity() {
     // ---------- זיהוי הוצאה ----------
 
     private fun updatePreview() {
-        if (type != Store.TYPE_EXPENSE) {
+        if (type != Store.TYPE_EXPENSE && type != Store.TYPE_EVENT) {
             preview.visibility = View.GONE
             return
         }
         preview.visibility = View.VISIBLE
         val raw = input.text.toString()
+        if (type == Store.TYPE_EVENT) {
+            val e = EventParser.parse(raw, LocalDateTime.now())
+            preview.text = when {
+                raw.isBlank() -> ""
+                e == null -> "⚠ לא זיהיתי תאריך או שעה"
+                else -> "📅 " + describe(e) + "  ·  " + e.title
+            }
+            return
+        }
         val p = Expense.parse(raw)
         preview.text = when {
             raw.isBlank() -> ""
@@ -224,6 +241,12 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(code, perms, results)
         if (code == 1 && results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startRecording()
         else if (code == 1) Toast.makeText(this, "אין הרשאת הקלטה", Toast.LENGTH_SHORT).show()
+        if (code == 3) {
+            val p = pendingEvent ?: return
+            pendingEvent = null
+            if (results.isNotEmpty() && results.all { it == PackageManager.PERMISSION_GRANTED }) addToCalendar(p)
+            else finishEvent(p, false)
+        }
     }
 
     // ---------- הכתבה (טקסט בלבד, דרך זיהוי הדיבור של גוגל) ----------
@@ -256,11 +279,81 @@ class MainActivity : Activity() {
         }
     }
 
+    // ---------- אירוע ביומן ----------
+
+    private var pendingEvent: EventParser.Parsed? = null
+
+    private fun describe(e: EventParser.Parsed): String {
+        val day = e.start.format(DateTimeFormatter.ofPattern("EEEE d/M", Locale("he", "IL")))
+        val hm = DateTimeFormatter.ofPattern("HH:mm")
+        return if (e.allDay) "$day · כל היום" else day + " · " + e.start.format(hm) + "–" + e.end.format(hm)
+    }
+
+    private fun saveEvent(text: String) {
+        val p = EventParser.parse(text, LocalDateTime.now())
+        if (p == null) {
+            Toast.makeText(this, "לא זיהיתי תאריך או שעה. כתוב למשל: מחר ב-16:00 פגישה עם דנה", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (!CalendarHelper.hasPermission(this)) {
+            pendingEvent = p
+            requestPermissions(arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR), 3)
+            return
+        }
+        addToCalendar(p)
+    }
+
+    private fun addToCalendar(p: EventParser.Parsed) {
+        val list = CalendarHelper.targets(this)
+        if (list.isEmpty()) {
+            finishEvent(p, false)
+            return
+        }
+        val target = CalendarHelper.saved(this, list)
+        if (target != null) {
+            finishEvent(p, CalendarHelper.insert(this, target, p))
+            return
+        }
+        // כמה חשבונות Google במכשיר: בוחרים פעם אחת לאיזה יומן להוסיף
+        AlertDialog.Builder(this)
+            .setTitle("לאיזה יומן להוסיף?")
+            .setItems(list.map { it.account }.toTypedArray()) { _, i ->
+                CalendarHelper.remember(this, list[i])
+                finishEvent(p, CalendarHelper.insert(this, list[i], p))
+            }
+            .setNegativeButton("ביטול", null)
+            .show()
+    }
+
+    private fun finishEvent(p: EventParser.Parsed, inserted: Boolean) {
+        val dayFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+        val dtFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+        val f = if (p.allDay) dayFmt else dtFmt
+        val info = Store.EventInfo(p.start.format(f), p.end.format(f), p.allDay, inserted)
+        Store.save(this, p.title, audioFile, Store.TYPE_EVENT, event = info)
+        saved = true
+        if (inserted) {
+            Toast.makeText(this, "נוסף ליומן ✓", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "לא נוסף אוטומטית. פותח את היומן, לחץ שמור", Toast.LENGTH_LONG).show()
+            try {
+                startActivity(CalendarHelper.insertIntent(p))
+            } catch (e: ActivityNotFoundException) {
+                // אין אפליקציית יומן: ההערה נשמרת בכל זאת
+            }
+        }
+        finish()
+    }
+
     // ---------- שמירה ----------
 
     private fun save() {
         if (recorder != null) stopRecording()
         val text = input.text.toString().trim()
+        if (type == Store.TYPE_EVENT) {
+            saveEvent(text)
+            return
+        }
         var textToSave = text
         var amount: Double? = null
         var origCur: String? = null

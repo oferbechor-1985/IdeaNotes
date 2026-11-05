@@ -11,6 +11,10 @@ object Store {
     const val TYPE_NOTE = "note"
     const val TYPE_EXPENSE = "expense"
     const val TYPE_FEEDBACK = "feedback"
+    const val TYPE_EVENT = "event"
+
+    /** פרטי אירוע: התחלה וסיום כטקסט (תאריך בלבד לאירוע של יום שלם) והאם נוסף ליומן. */
+    data class EventInfo(val start: String, val end: String, val allDay: Boolean, val inCalendar: Boolean)
 
     data class Note(
         val file: File,
@@ -23,7 +27,8 @@ object Store {
         // הוצאה במטבע זר: המטבע, הסכום המקורי והשער ששימש להמרה לשקלים
         val origCurrency: String? = null,
         val origAmount: Double? = null,
-        val rate: Double? = null
+        val rate: Double? = null,
+        val event: EventInfo? = null
     ) {
         fun isForeign(): Boolean = origCurrency != null && origCurrency != "ILS"
 
@@ -41,6 +46,10 @@ object Store {
                     first, tagLine
                 )
                 TYPE_FEEDBACK -> listOf("🛠 שיפור  ·  " + date + mic, first)
+                TYPE_EVENT -> listOf(
+                    "📅 " + (event?.start ?: date) + (if (event?.inCalendar == false) "  (לא נוסף ליומן)" else "") + mic,
+                    first
+                )
                 else -> listOf(date + mic, tagLine, first)
             }
             return lines.filter { it.isNotBlank() }.joinToString("\n")
@@ -68,7 +77,8 @@ object Store {
         amount: Double? = null,
         origCurrency: String? = null,
         origAmount: Double? = null,
-        rate: Double? = null
+        rate: Double? = null,
+        event: EventInfo? = null
     ): File {
         val base = audio?.nameWithoutExtension ?: newBase()
         val date = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
@@ -84,6 +94,12 @@ object Store {
                 sb.append("סכום מקור: ").append(String.format(Locale.US, "%.2f", origAmount)).append('\n')
                 sb.append("שער: ").append(String.format(Locale.US, "%.4f", rate)).append('\n')
             }
+        }
+        if (type == TYPE_EVENT && event != null) {
+            sb.append("התחלה: ").append(event.start).append('\n')
+            sb.append("סיום: ").append(event.end).append('\n')
+            if (event.allDay) sb.append("כל היום: כן\n")
+            sb.append("ביומן: ").append(if (event.inCalendar) "כן" else "לא").append('\n')
         }
         sb.append("תגיות: ").append(tags.joinToString(", ")).append('\n')
         if (audio != null) sb.append("שמע: ").append(audio.name).append('\n')
@@ -116,6 +132,10 @@ object Store {
         var origCurrency: String? = null
         var origAmount: Double? = null
         var rate: Double? = null
+        var evStart: String? = null
+        var evEnd = ""
+        var evAll = false
+        var evCal = false
         var tags = emptyList<String>()
         var audio: File? = null
         for (line in header.lines()) {
@@ -126,6 +146,10 @@ object Store {
                 line.startsWith("מטבע מקור: ") -> origCurrency = line.removePrefix("מטבע מקור: ").trim()
                 line.startsWith("סכום מקור: ") -> origAmount = line.removePrefix("סכום מקור: ").trim().toDoubleOrNull()
                 line.startsWith("שער: ") -> rate = line.removePrefix("שער: ").trim().toDoubleOrNull()
+                line.startsWith("התחלה: ") -> evStart = line.removePrefix("התחלה: ").trim()
+                line.startsWith("סיום: ") -> evEnd = line.removePrefix("סיום: ").trim()
+                line.startsWith("כל היום: ") -> evAll = true
+                line.startsWith("ביומן: ") -> evCal = line.removePrefix("ביומן: ").trim() == "כן"
                 line.startsWith("תגיות: ") -> tags = line.removePrefix("תגיות: ")
                     .split(",").map { it.trim() }.filter { it.isNotEmpty() }
                 line.startsWith("שמע: ") -> {
@@ -134,7 +158,9 @@ object Store {
                 }
             }
         }
-        return Note(f, date, type, amount, tags, audio, body, origCurrency, origAmount, rate)
+        val start = evStart
+        val event = if (start != null) EventInfo(start, evEnd, evAll, evCal) else null
+        return Note(f, date, type, amount, tags, audio, body, origCurrency, origAmount, rate, event)
     }
 
     /** טבלת הוצאות: expenses.csv בתוך תיקיית ההערות. נפתחת באקסל / Google Sheets.

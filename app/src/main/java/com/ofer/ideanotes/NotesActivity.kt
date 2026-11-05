@@ -49,11 +49,15 @@ class NotesActivity : Activity() {
             null to "הכול",
             Store.TYPE_NOTE to "הערות",
             Store.TYPE_EXPENSE to "הוצאות",
+            Store.TYPE_EVENT to "אירועים",
             Store.TYPE_FEEDBACK to "שיפורים"
         )
         for ((type, label) in options) {
             val b = Button(this).apply {
                 text = label
+                minWidth = 0
+                minimumWidth = 0
+                textSize = 13f
                 setOnClickListener {
                     filter = type
                     applyFilter()
@@ -146,6 +150,11 @@ class NotesActivity : Activity() {
             sb.append("\n\n")
         }
         if (n.type == Store.TYPE_FEEDBACK) sb.append("🛠 שיפור לאפליקציה\n\n")
+        n.event?.let { e ->
+            sb.append("📅 ").append(e.start)
+            if (e.allDay) sb.append(" (כל היום)")
+            sb.append("\n").append(if (e.inCalendar) "נוסף ליומן Google ✓" else "לא נוסף ליומן").append("\n\n")
+        }
         if (n.tags.isNotEmpty()) sb.append(n.tags.joinToString(" ") { "#$it" }).append("\n\n")
         sb.append(n.body)
 
