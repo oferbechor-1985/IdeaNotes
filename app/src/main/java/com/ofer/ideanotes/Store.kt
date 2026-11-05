@@ -12,6 +12,7 @@ object Store {
     const val TYPE_EXPENSE = "expense"
     const val TYPE_FEEDBACK = "feedback"
     const val TYPE_EVENT = "event"
+    const val TYPE_ALARM = "alarm"
 
     /** פרטי אירוע: התחלה וסיום כטקסט (תאריך בלבד לאירוע של יום שלם) והאם נוסף ליומן. */
     data class EventInfo(val start: String, val end: String, val allDay: Boolean, val inCalendar: Boolean)
@@ -28,7 +29,8 @@ object Store {
         val origCurrency: String? = null,
         val origAmount: Double? = null,
         val rate: Double? = null,
-        val event: EventInfo? = null
+        val event: EventInfo? = null,
+        val alarm: String? = null
     ) {
         fun isForeign(): Boolean = origCurrency != null && origCurrency != "ILS"
 
@@ -46,6 +48,7 @@ object Store {
                     first, tagLine
                 )
                 TYPE_FEEDBACK -> listOf("🛠 שיפור  ·  " + date + mic, first)
+                TYPE_ALARM -> listOf("⏰ " + (alarm ?: date) + mic, first)
                 TYPE_EVENT -> listOf(
                     "📅 " + (event?.start ?: date) + (if (event?.inCalendar == false) "  (לא נוסף ליומן)" else "") + mic,
                     first
@@ -78,7 +81,8 @@ object Store {
         origCurrency: String? = null,
         origAmount: Double? = null,
         rate: Double? = null,
-        event: EventInfo? = null
+        event: EventInfo? = null,
+        alarm: String? = null
     ): File {
         val base = audio?.nameWithoutExtension ?: newBase()
         val date = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
@@ -94,6 +98,9 @@ object Store {
                 sb.append("סכום מקור: ").append(String.format(Locale.US, "%.2f", origAmount)).append('\n')
                 sb.append("שער: ").append(String.format(Locale.US, "%.4f", rate)).append('\n')
             }
+        }
+        if (type == TYPE_ALARM && alarm != null) {
+            sb.append("התראה: ").append(alarm).append('\n')
         }
         if (type == TYPE_EVENT && event != null) {
             sb.append("התחלה: ").append(event.start).append('\n')
@@ -136,6 +143,7 @@ object Store {
         var evEnd = ""
         var evAll = false
         var evCal = false
+        var alarmDesc: String? = null
         var tags = emptyList<String>()
         var audio: File? = null
         for (line in header.lines()) {
@@ -150,6 +158,7 @@ object Store {
                 line.startsWith("סיום: ") -> evEnd = line.removePrefix("סיום: ").trim()
                 line.startsWith("כל היום: ") -> evAll = true
                 line.startsWith("ביומן: ") -> evCal = line.removePrefix("ביומן: ").trim() == "כן"
+                line.startsWith("התראה: ") -> alarmDesc = line.removePrefix("התראה: ").trim()
                 line.startsWith("תגיות: ") -> tags = line.removePrefix("תגיות: ")
                     .split(",").map { it.trim() }.filter { it.isNotEmpty() }
                 line.startsWith("שמע: ") -> {
@@ -160,7 +169,7 @@ object Store {
         }
         val start = evStart
         val event = if (start != null) EventInfo(start, evEnd, evAll, evCal) else null
-        return Note(f, date, type, amount, tags, audio, body, origCurrency, origAmount, rate, event)
+        return Note(f, date, type, amount, tags, audio, body, origCurrency, origAmount, rate, event, alarmDesc)
     }
 
     /** טבלת הוצאות: expenses.csv בתוך תיקיית ההערות. נפתחת באקסל / Google Sheets.

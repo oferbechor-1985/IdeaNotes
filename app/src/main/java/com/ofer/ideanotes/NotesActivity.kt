@@ -50,6 +50,7 @@ class NotesActivity : Activity() {
             Store.TYPE_NOTE to "הערות",
             Store.TYPE_EXPENSE to "הוצאות",
             Store.TYPE_EVENT to "אירועים",
+            Store.TYPE_ALARM to "התראות",
             Store.TYPE_FEEDBACK to "שיפורים"
         )
         for ((type, label) in options) {
@@ -57,7 +58,8 @@ class NotesActivity : Activity() {
                 text = label
                 minWidth = 0
                 minimumWidth = 0
-                textSize = 13f
+                textSize = 12f
+                setPadding(dp(2), dp(8), dp(2), dp(8))
                 setOnClickListener {
                     filter = type
                     applyFilter()
@@ -155,6 +157,7 @@ class NotesActivity : Activity() {
             if (e.allDay) sb.append(" (כל היום)")
             sb.append("\n").append(if (e.inCalendar) "נוסף ליומן Google ✓" else "לא נוסף ליומן").append("\n\n")
         }
+        n.alarm?.let { sb.append("⏰ ").append(it).append("\n\n") }
         if (n.tags.isNotEmpty()) sb.append(n.tags.joinToString(" ") { "#$it" }).append("\n\n")
         sb.append(n.body)
 

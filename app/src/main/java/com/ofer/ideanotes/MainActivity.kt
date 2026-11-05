@@ -90,6 +90,7 @@ class MainActivity : Activity() {
             Triple(Store.TYPE_NOTE, "📝 הערה", "מה הרעיון?"),
             Triple(Store.TYPE_EXPENSE, "💸 הוצאה", "למשל: 30 שקל עבור שוארמה / 10 דולר עבור קפה"),
             Triple(Store.TYPE_EVENT, "📅 אירוע", "למשל: מחר ב-16:00 פגישה עם דנה"),
+            Triple(Store.TYPE_ALARM, "⏰ התראה", "למשל: כל יום ב-9 בבוקר לקחת תרופה / מחר ב-8 להתקשר לרופא"),
             Triple(Store.TYPE_FEEDBACK, "🛠 שיפור", "מה לתקן או לשפר באפליקציה?")
         )
         val byId = HashMap<Int, Triple<String, String, String>>()
@@ -153,12 +154,22 @@ class MainActivity : Activity() {
     // ---------- זיהוי הוצאה ----------
 
     private fun updatePreview() {
-        if (type != Store.TYPE_EXPENSE && type != Store.TYPE_EVENT) {
+        if (type != Store.TYPE_EXPENSE && type != Store.TYPE_EVENT && type != Store.TYPE_ALARM) {
             preview.visibility = View.GONE
             return
         }
         preview.visibility = View.VISIBLE
         val raw = input.text.toString()
+        if (type == Store.TYPE_ALARM) {
+            val r = AlarmParser.parse(raw, LocalDateTime.now())
+            val a = r.alarm
+            preview.text = when {
+                raw.isBlank() -> ""
+                a != null -> "⏰ " + a.describe() + "  ·  " + a.message
+                else -> "⚠ " + (r.error ?: "")
+            }
+            return
+        }
         if (type == Store.TYPE_EVENT) {
             val e = EventParser.parse(raw, LocalDateTime.now())
             preview.text = when {
@@ -279,6 +290,27 @@ class MainActivity : Activity() {
         }
     }
 
+    // ---------- התראה בשעון המעורר ----------
+
+    private fun saveAlarm(text: String) {
+        val r = AlarmParser.parse(text, LocalDateTime.now())
+        val a = r.alarm
+        if (a == null) {
+            Toast.makeText(this, r.error ?: AlarmParser.ERR_NO_TIME, Toast.LENGTH_LONG).show()
+            return
+        }
+        try {
+            startActivity(AlarmHelper.intent(a))
+        } catch (e: Exception) {
+            Toast.makeText(this, "לא נמצאה אפליקציית שעון בטלפון", Toast.LENGTH_LONG).show()
+            return
+        }
+        Store.save(this, a.message, audioFile, Store.TYPE_ALARM, alarm = a.describe())
+        saved = true
+        Toast.makeText(this, "⏰ ההתראה הוגדרה בשעון", Toast.LENGTH_SHORT).show()
+        finish()
+    }
+
     // ---------- אירוע ביומן ----------
 
     private var pendingEvent: EventParser.Parsed? = null
@@ -352,6 +384,10 @@ class MainActivity : Activity() {
         val text = input.text.toString().trim()
         if (type == Store.TYPE_EVENT) {
             saveEvent(text)
+            return
+        }
+        if (type == Store.TYPE_ALARM) {
+            saveAlarm(text)
             return
         }
         var textToSave = text
