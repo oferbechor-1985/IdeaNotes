@@ -147,6 +147,7 @@ class MainActivity : Activity() {
 
         if (savedInstanceState == null) {
             Rates.refresh(this)
+            Feedback.flush(this)
             UpdateChecker.check(this)
         }
     }
@@ -418,6 +419,7 @@ class MainActivity : Activity() {
             return
         }
         Store.save(this, textToSave, audioFile, type, amount, origCur, origAmt, rate)
+        if (type == Store.TYPE_FEEDBACK) Feedback.flush(this)
         saved = true
         Toast.makeText(this, "נשמר ✓", Toast.LENGTH_SHORT).show()
         finish()

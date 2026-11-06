@@ -30,7 +30,9 @@ object Store {
         val origAmount: Double? = null,
         val rate: Double? = null,
         val event: EventInfo? = null,
-        val alarm: String? = null
+        val alarm: String? = null,
+        // הערת שיפור: האם נשלחה אוטומטית (null = לא רלוונטי)
+        val sent: Boolean? = null
     ) {
         fun isForeign(): Boolean = origCurrency != null && origCurrency != "ILS"
 
@@ -47,7 +49,10 @@ object Store {
                         "  ·  " + date + mic,
                     first, tagLine
                 )
-                TYPE_FEEDBACK -> listOf("🛠 שיפור  ·  " + date + mic, first)
+                TYPE_FEEDBACK -> listOf(
+                    "🛠 שיפור  ·  " + date + mic + when (sent) { true -> "  ✓ נשלח"; false -> "  ⏳ ממתין לשליחה"; else -> "" },
+                    first
+                )
                 TYPE_ALARM -> listOf("⏰ " + (alarm ?: date) + mic, first)
                 TYPE_EVENT -> listOf(
                     "📅 " + (event?.start ?: date) + (if (event?.inCalendar == false) "  (לא נוסף ליומן)" else "") + mic,
@@ -108,6 +113,7 @@ object Store {
             if (event.allDay) sb.append("כל היום: כן\n")
             sb.append("ביומן: ").append(if (event.inCalendar) "כן" else "לא").append('\n')
         }
+        if (type == TYPE_FEEDBACK) sb.append("נשלח: לא\n")
         sb.append("תגיות: ").append(tags.joinToString(", ")).append('\n')
         if (audio != null) sb.append("שמע: ").append(audio.name).append('\n')
         sb.append("---\n").append(text)
@@ -144,6 +150,7 @@ object Store {
         var evAll = false
         var evCal = false
         var alarmDesc: String? = null
+        var sent: Boolean? = null
         var tags = emptyList<String>()
         var audio: File? = null
         for (line in header.lines()) {
@@ -159,6 +166,7 @@ object Store {
                 line.startsWith("כל היום: ") -> evAll = true
                 line.startsWith("ביומן: ") -> evCal = line.removePrefix("ביומן: ").trim() == "כן"
                 line.startsWith("התראה: ") -> alarmDesc = line.removePrefix("התראה: ").trim()
+                line.startsWith("נשלח: ") -> sent = line.removePrefix("נשלח: ").trim() == "כן"
                 line.startsWith("תגיות: ") -> tags = line.removePrefix("תגיות: ")
                     .split(",").map { it.trim() }.filter { it.isNotEmpty() }
                 line.startsWith("שמע: ") -> {
@@ -169,7 +177,21 @@ object Store {
         }
         val start = evStart
         val event = if (start != null) EventInfo(start, evEnd, evAll, evCal) else null
-        return Note(f, date, type, amount, tags, audio, body, origCurrency, origAmount, rate, event, alarmDesc)
+        return Note(f, date, type, amount, tags, audio, body, origCurrency, origAmount, rate, event, alarmDesc, sent)
+    }
+
+    /** הערות שיפור עם טקסט שעוד לא נשלחו (ישנות קודם). */
+    fun pending(c: Context): List<Note> =
+        list(c).filter { it.type == TYPE_FEEDBACK && it.sent == false && it.body.isNotBlank() }
+            .sortedBy { it.date }
+
+    /** מסמן הערת שיפור כנשלחה, בכותרת הקובץ בלבד (לא נוגע בגוף ההערה). */
+    fun markSent(file: File) {
+        val raw = file.readText()
+        val i = raw.indexOf("\n---\n")
+        if (i < 0) return
+        val header = raw.substring(0, i).replace("נשלח: לא", "נשלח: כן")
+        file.writeText(header + raw.substring(i))
     }
 
     /** טבלת הוצאות: expenses.csv בתוך תיקיית ההערות. נפתחת באקסל / Google Sheets.
