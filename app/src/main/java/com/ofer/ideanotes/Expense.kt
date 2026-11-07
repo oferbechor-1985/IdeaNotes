@@ -47,7 +47,7 @@ object Expense {
         currencies[symbolOrWord] ?: currencies[symbolOrWord.lowercase()] ?: "ILS"
 
     fun parse(raw: String): Parsed? {
-        val text = raw.replace('״', '"').replace('’', '\'').trim()
+        val text = HebrewNumbers.normalize(raw).replace('״', '"').replace('’', '\'').trim()
         if (text.isEmpty()) return null
 
         val span: IntRange

@@ -72,7 +72,7 @@ object AlarmParser {
     const val ERR_UNSUPPORTED = "שעון מעורר לא תומך בחזרה חודשית או שנתית, רק יומית או לפי ימי שבוע"
 
     fun parse(raw: String, now: LocalDateTime): Result {
-        var t = raw.trim()
+        var t = HebrewNumbers.normalize(raw).trim()
         if (t.isEmpty()) return Result(null, ERR_NOTHING)
         if (unsupportedRe.containsMatchIn(t)) return Result(null, ERR_UNSUPPORTED)
 

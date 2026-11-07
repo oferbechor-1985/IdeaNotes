@@ -87,7 +87,7 @@ object EventParser {
     }
 
     fun parse(raw: String, now: LocalDateTime): Parsed? {
-        var t = raw.replace('״', '"').replace('”', '"').replace('“', '"').trim()
+        var t = HebrewNumbers.normalize(raw).replace('״', '"').replace('”', '"').replace('“', '"').trim()
         if (t.isEmpty()) return null
         val today = now.toLocalDate()
 
