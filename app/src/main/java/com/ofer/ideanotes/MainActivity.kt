@@ -175,36 +175,52 @@ class MainActivity : Activity() {
 
     // ---------- זיהוי הוצאה ----------
 
+    /** הסוג בפועל: אם נבחרה "הערה" והטקסט פותח במילת סוג (אירוע, התראה...) – הסוג הזה והטקסט בלעדיה. */
+    private fun effective(): Pair<String, String> {
+        val raw = input.text.toString()
+        if (type == Store.TYPE_NOTE) {
+            val d = AutoType.detect(raw)
+            if (d != null) return d.type to d.rest
+        }
+        return type to raw
+    }
+
     private fun updatePreview() {
-        if (type != Store.TYPE_EXPENSE && type != Store.TYPE_EVENT && type != Store.TYPE_ALARM) {
+        val (t, raw) = effective()
+        val auto = type == Store.TYPE_NOTE && t != Store.TYPE_NOTE
+        val fb = if (auto) " (תישמר כהערה רגילה)" else ""
+        if (t != Store.TYPE_EXPENSE && t != Store.TYPE_EVENT && t != Store.TYPE_ALARM && !(auto && t == Store.TYPE_FEEDBACK)) {
             preview.visibility = View.GONE
             return
         }
         preview.visibility = View.VISIBLE
-        val raw = input.text.toString()
-        if (type == Store.TYPE_ALARM) {
+        if (t == Store.TYPE_FEEDBACK) {
+            preview.text = if (raw.isBlank()) "⚠ אין טקסט אחרי המילה$fb" else "🛠 שיפור לאפליקציה  ·  " + raw.take(60)
+            return
+        }
+        if (t == Store.TYPE_ALARM) {
             val r = AlarmParser.parse(raw, LocalDateTime.now())
             val a = r.alarm
             preview.text = when {
-                raw.isBlank() -> ""
+                raw.isBlank() -> if (auto) "⚠ חסר תוכן$fb" else ""
                 a != null -> "⏰ " + a.describe() + "  ·  " + a.message
-                else -> "⚠ " + (r.error ?: "")
+                else -> "⚠ " + (r.error ?: "") + fb
             }
             return
         }
-        if (type == Store.TYPE_EVENT) {
+        if (t == Store.TYPE_EVENT) {
             val e = EventParser.parse(raw, LocalDateTime.now())
             preview.text = when {
-                raw.isBlank() -> ""
-                e == null -> "⚠ לא זיהיתי תאריך או שעה"
+                raw.isBlank() -> if (auto) "⚠ חסר תוכן$fb" else ""
+                e == null -> "⚠ לא זיהיתי תאריך או שעה$fb"
                 else -> "📅 " + describe(e) + "  ·  " + e.title
             }
             return
         }
         val p = Expense.parse(raw)
         preview.text = when {
-            raw.isBlank() -> ""
-            p == null -> "⚠ לא זיהיתי סכום"
+            raw.isBlank() -> if (auto) "⚠ חסר תוכן$fb" else ""
+            p == null -> "⚠ לא זיהיתי סכום$fb"
             else -> {
                 val rate = Rates.ilsPer(this, p.currency)
                 val ils = if (rate != null) Store.money(p.amount * rate) else "אין שער המרה"
@@ -403,7 +419,22 @@ class MainActivity : Activity() {
 
     private fun save() {
         if (recorder != null) stopRecording()
-        val text = input.text.toString().trim()
+        val original = input.text.toString().trim()
+        var (type, text) = effective()
+        text = text.trim()
+        // סיווג אוטומטי שלא הצליח (אין תאריך/שעה/סכום) נשמר כהערה רגילה עם הטקסט המלא
+        if (this.type == Store.TYPE_NOTE && type != Store.TYPE_NOTE) {
+            val ok = when (type) {
+                Store.TYPE_EVENT -> EventParser.parse(text, LocalDateTime.now()) != null
+                Store.TYPE_ALARM -> AlarmParser.parse(text, LocalDateTime.now()).alarm != null
+                Store.TYPE_EXPENSE -> Expense.parse(text) != null
+                else -> text.isNotEmpty()
+            }
+            if (!ok) {
+                type = Store.TYPE_NOTE
+                text = original
+            }
+        }
         if (type == Store.TYPE_EVENT) {
             saveEvent(text)
             return
