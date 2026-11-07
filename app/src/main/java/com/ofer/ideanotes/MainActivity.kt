@@ -104,23 +104,28 @@ class MainActivity : Activity() {
             for ((tv, t) in chips) Ui.chip(tv, t == type)
             updatePreview()
         }
-        val chipRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        for (k in kinds) {
+        // שתי שורות: 3 תגים למעלה, 2 למטה (עמודות שוות)
+        val chipGrid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val chipRows = listOf(
+            LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL },
+            LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        )
+        chipRows.forEach { chipGrid.addView(it) }
+        for ((idx, k) in kinds.withIndex()) {
             val tv = TextView(this).apply {
                 text = k.second
                 textSize = 14f
                 setOnClickListener { select(k) }
             }
             chips.add(tv to k.first)
-            chipRow.addView(tv, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            chipRows[if (idx < 3) 0 else 1].addView(tv, LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
             ).apply { setMargins(dp(4), dp(4), dp(4), dp(6)) })
         }
+        // תא ריק בשורה השנייה, כדי ששני התגים יישארו באותו רוחב כמו למעלה
+        chipRows[1].addView(View(this), LinearLayout.LayoutParams(0, 0, 1f))
 
-        root.addView(HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
-            addView(chipRow)
-        })
+        root.addView(chipGrid)
         root.addView(input, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { setMargins(dp(4), dp(8), dp(4), dp(8)) })
