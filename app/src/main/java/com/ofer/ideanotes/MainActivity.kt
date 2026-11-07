@@ -64,6 +64,10 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        window.setBackgroundDrawable(android.graphics.drawable.GradientDrawable().apply {
+            setColor(Ui.CREAM)
+            cornerRadius = dp(24).toFloat()
+        })
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -81,7 +85,7 @@ class MainActivity : Activity() {
         // תצוגה מקדימה של מה שזוהה בהוצאה (סכום, מטבע, תיאור)
         preview = TextView(this).apply {
             textSize = 16f
-            setPadding(0, dp(4), 0, dp(4))
+            setTextColor(Ui.INK)
             visibility = View.GONE
         }
 
@@ -93,54 +97,66 @@ class MainActivity : Activity() {
             Triple(Store.TYPE_ALARM, "⏰ התראה", "למשל: כל יום ב-9 בבוקר לקחת תרופה / מחר ב-8 להתקשר לרופא"),
             Triple(Store.TYPE_FEEDBACK, "🛠 שיפור", "מה לתקן או לשפר באפליקציה?")
         )
-        val byId = HashMap<Int, Triple<String, String, String>>()
-        val group = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL }
-        var firstId = 0
-        for (k in kinds) {
-            val rb = RadioButton(this).apply {
-                text = k.second
-                id = View.generateViewId()
-            }
-            if (firstId == 0) firstId = rb.id
-            byId[rb.id] = k
-            group.addView(rb)
-        }
-        group.setOnCheckedChangeListener { _, checkedId ->
-            val k = byId[checkedId] ?: return@setOnCheckedChangeListener
+        val chips = mutableListOf<Pair<TextView, String>>()
+        fun select(k: Triple<String, String, String>) {
             type = k.first
             input.hint = k.third
+            for ((tv, t) in chips) Ui.chip(tv, t == type)
             updatePreview()
+        }
+        val chipRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        for (k in kinds) {
+            val tv = TextView(this).apply {
+                text = k.second
+                textSize = 14f
+                setOnClickListener { select(k) }
+            }
+            chips.add(tv to k.first)
+            chipRow.addView(tv, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(dp(4), dp(4), dp(4), dp(6)) })
         }
 
         root.addView(HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
-            addView(group)
+            addView(chipRow)
         })
-        root.addView(input)
-        root.addView(preview)
-        group.check(firstId)
+        root.addView(input, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(dp(4), dp(8), dp(4), dp(8)) })
+        root.addView(preview, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(dp(4), dp(0), dp(4), dp(8)) })
+        Ui.card(input, Ui.WHITE, 18, 5, 16)
+        input.textSize = 18f
+        Ui.card(preview, Ui.MINT_L, 14, 0, 12)
+        select(kinds[0])
         input.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
             override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
             override fun afterTextChanged(s: Editable?) = updatePreview()
         })
 
-        status = TextView(this).apply { setPadding(0, dp(6), 0, dp(6)) }
+        status = TextView(this).apply { setPadding(0, dp(6), 0, dp(6)); setTextColor(Ui.INK) }
         root.addView(status)
 
         recBtn = button("🎙 הקלט") { toggleRecording() }
         val dictBtn = button("🗣 הכתבה") { dictate() }
         val row1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(dp(4), dp(4), dp(4), dp(4)) }
+        Ui.button(recBtn, Ui.CORAL)
+        Ui.button(dictBtn, Ui.SKY)
         row1.addView(recBtn, lp)
         row1.addView(dictBtn, lp)
         root.addView(row1)
 
         val saveBtn = button("שמור") { save() }
         val listBtn = button("ההערות שלי") { startActivity(Intent(this, NotesActivity::class.java)) }
+        Ui.button(saveBtn, Ui.MINT, 20f, 60, 5)
+        Ui.button(listBtn, Ui.WHITE, 15f, 60, 0)
         val row2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        row2.addView(saveBtn, lp)
-        row2.addView(listBtn, lp)
+        row2.addView(saveBtn, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 2f).apply { setMargins(dp(4), dp(8), dp(4), dp(4)) })
+        row2.addView(listBtn, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(dp(4), dp(8), dp(4), dp(4)) })
         root.addView(row2)
 
         setContentView(root)

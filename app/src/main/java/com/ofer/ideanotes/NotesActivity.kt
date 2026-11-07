@@ -40,11 +40,15 @@ class NotesActivity : Activity() {
         super.onCreate(savedInstanceState)
         title = "ההערות שלי"
 
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Ui.CREAM)
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+        }
 
         // שורת סינון לפי סוג
         val filterRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(dp(2), dp(2), dp(2), dp(4)) }
         val options = listOf<Pair<String?, String>>(
             null to "הכול",
             Store.TYPE_NOTE to "הערות",
@@ -59,7 +63,6 @@ class NotesActivity : Activity() {
                 minWidth = 0
                 minimumWidth = 0
                 textSize = 12f
-                setPadding(dp(2), dp(8), dp(2), dp(8))
                 setOnClickListener {
                     filter = type
                     applyFilter()
@@ -72,6 +75,7 @@ class NotesActivity : Activity() {
 
         totalView = TextView(this).apply {
             textSize = 18f
+            setTextColor(Ui.INK)
             setPadding(dp(16), dp(8), dp(16), dp(8))
             visibility = View.GONE
         }
@@ -81,7 +85,10 @@ class NotesActivity : Activity() {
         root.addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
         actionBtn = Button(this).apply { setOnClickListener { onAction() } }
-        root.addView(actionBtn)
+        Ui.button(actionBtn, Ui.MINT, 16f, 54, 4)
+        root.addView(actionBtn, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(dp(4), dp(8), dp(4), dp(4)) })
 
         setContentView(root)
 
@@ -115,7 +122,7 @@ class NotesActivity : Activity() {
         shown = if (f == null) all else all.filter { it.type == f }
         list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, shown.map { it.summary() })
 
-        for ((type, b) in filterButtons) b.alpha = if (type == f) 1f else 0.5f
+        for ((type, b) in filterButtons) Ui.chip(b, type == f, 4, 8)
 
         if (f == Store.TYPE_EXPENSE) {
             val total = shown.fold(0.0) { acc, n -> acc + (n.amount ?: 0.0) }
