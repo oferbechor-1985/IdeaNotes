@@ -123,6 +123,36 @@ object Store {
         return f
     }
 
+    /** אירוע שהתחיל / התראה חד-פעמית שצלצלה: כבר אין בהם צורך ברשימה. התראה חוזרת נשארת. */
+    fun isDone(n: Note, now: java.time.LocalDateTime): Boolean {
+        return try {
+        when (n.type) {
+            TYPE_EVENT -> {
+                val s = n.event?.start ?: return false
+                val t = if (s.length <= 10) java.time.LocalDate.parse(s).plusDays(1).atStartOfDay()
+                else java.time.LocalDateTime.parse(s.replace(' ', 'T'))
+                now.isAfter(t)
+            }
+            TYPE_ALARM -> {
+                val a = n.alarm ?: return false
+                if (!a.startsWith("חד-פעמית ")) return false
+                val t = java.time.LocalDateTime.parse(a.removePrefix("חד-פעמית ").trim().replace(' ', 'T'))
+                now.isAfter(t)
+            }
+            else -> false
+        }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** מוחק אירועים והתראות שכבר הופעלו. מחזיר כמה נמחקו. */
+    fun cleanup(c: Context, now: java.time.LocalDateTime = java.time.LocalDateTime.now()): Int {
+        var n = 0
+        for (note in list(c)) if (isDone(note, now)) { delete(c, note); n++ }
+        return n
+    }
+
     fun delete(c: Context, n: Note) {
         n.file.delete()
         n.audio?.delete()

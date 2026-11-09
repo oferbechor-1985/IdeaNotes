@@ -167,6 +167,7 @@ class MainActivity : Activity() {
         setContentView(root)
 
         if (savedInstanceState == null) {
+            Thread { Store.cleanup(applicationContext) }.start()
             Rates.refresh(this)
             Feedback.flush(this)
             UpdateChecker.check(this)
@@ -189,11 +190,15 @@ class MainActivity : Activity() {
         val (t, raw) = effective()
         val auto = type == Store.TYPE_NOTE && t != Store.TYPE_NOTE
         val fb = if (auto) " (תישמר כהערה רגילה)" else ""
-        if (t != Store.TYPE_EXPENSE && t != Store.TYPE_EVENT && t != Store.TYPE_ALARM && !(auto && t == Store.TYPE_FEEDBACK)) {
+        if (t != Store.TYPE_EXPENSE && t != Store.TYPE_EVENT && t != Store.TYPE_ALARM && !(auto && (t == Store.TYPE_FEEDBACK || t == AutoType.TYPE_SEARCH))) {
             preview.visibility = View.GONE
             return
         }
         preview.visibility = View.VISIBLE
+        if (t == AutoType.TYPE_SEARCH) {
+            preview.text = if (raw.isBlank()) "⚠ כתוב מה לחפש אחרי המילה$fb" else "🔍 חיפוש בגוגל  ·  " + raw.take(60)
+            return
+        }
         if (t == Store.TYPE_FEEDBACK) {
             preview.text = if (raw.isBlank()) "⚠ אין טקסט אחרי המילה$fb" else "🛠 שיפור לאפליקציה  ·  " + raw.take(60)
             return
@@ -328,6 +333,23 @@ class MainActivity : Activity() {
         }
     }
 
+    // ---------- חיפוש בגוגל (לא נשמר) ----------
+
+    private fun googleSearch(query: String) {
+        val intent = Intent(Intent.ACTION_WEB_SEARCH).putExtra(android.app.SearchManager.QUERY, query)
+        try {
+            startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.google.com/search?q=" + android.net.Uri.encode(query))))
+            } catch (e2: ActivityNotFoundException) {
+                Toast.makeText(this, "לא נמצא דפדפן לחיפוש", Toast.LENGTH_LONG).show()
+                return
+            }
+        }
+        finish() // לא נשמר, וגם הקלטה שלא נשמרה נמחקת ב-onDestroy
+    }
+
     // ---------- התראה בשעון המעורר ----------
 
     private fun saveAlarm(text: String) {
@@ -434,6 +456,10 @@ class MainActivity : Activity() {
                 type = Store.TYPE_NOTE
                 text = original
             }
+        }
+        if (type == AutoType.TYPE_SEARCH) {
+            googleSearch(text)
+            return
         }
         if (type == Store.TYPE_EVENT) {
             saveEvent(text)

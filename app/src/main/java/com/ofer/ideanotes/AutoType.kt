@@ -6,6 +6,9 @@ package com.ofer.ideanotes
  */
 object AutoType {
 
+    /** חיפוש בגוגל: לא סוג שנשמר, רק קיצור שפותח את הדפדפן. */
+    const val TYPE_SEARCH = "search"
+
     data class Detected(val type: String, val rest: String)
 
     private val words = mapOf(
@@ -13,7 +16,8 @@ object AutoType {
         "הוצאה" to Store.TYPE_EXPENSE,
         "אירוע" to Store.TYPE_EVENT,
         "התראה" to Store.TYPE_ALARM,
-        "שיפור" to Store.TYPE_FEEDBACK
+        "שיפור" to Store.TYPE_FEEDBACK,
+        "חיפוש" to TYPE_SEARCH
     )
 
     // אחרי המילה חייב לבוא מפריד (פסיק, נקודתיים, מקף, רווח) או סוף הטקסט

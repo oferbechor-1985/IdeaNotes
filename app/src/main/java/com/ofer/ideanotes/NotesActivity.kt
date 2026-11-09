@@ -112,6 +112,7 @@ class NotesActivity : Activity() {
     }
 
     private fun reload() {
+        Store.cleanup(this)
         all = Store.list(this)
         applyFilter()
         if (all.isEmpty()) Toast.makeText(this, "עדיין אין הערות", Toast.LENGTH_SHORT).show()
