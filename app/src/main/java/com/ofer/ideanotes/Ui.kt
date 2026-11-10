@@ -58,13 +58,14 @@ object Ui {
         v.textSize = textSp
         v.typeface = Typeface.DEFAULT_BOLD
         v.background = box(c, fill, 16, shadowDp)
+        v.maxLines = 1
         v.minHeight = dp(c, heightDp)
         v.minimumHeight = dp(c, heightDp)
         v.setPadding(dp(c, 8), dp(c, 4), dp(c, 8) + dp(c, shadowDp), dp(c, 4) + dp(c, shadowDp))
     }
 
     /** תג סוג הערה: נבחר = ירוק מלא עם צל, אחרת תכלת בהיר. */
-    fun chip(v: TextView, selected: Boolean, padH: Int = 14, padV: Int = 8) {
+    fun chip(v: TextView, selected: Boolean, padH: Int = 8, padV: Int = 8) {
         val c = v.context
         base(v)
         v.minWidth = 0

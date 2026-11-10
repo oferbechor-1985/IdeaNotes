@@ -72,6 +72,8 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(12), dp(16), dp(12))
+            // החלון רחב כמעט כמו המסך, גם כשאין הרבה טקסט (אחרת תגים וכפתורים נחתכים)
+            minimumWidth = (resources.displayMetrics.widthPixels * 0.94f).toInt()
         }
 
         input = EditText(this).apply {
@@ -155,7 +157,7 @@ class MainActivity : Activity() {
         root.addView(row1)
 
         val saveBtn = button("שמור") { save() }
-        val listBtn = button("ההערות שלי") { startActivity(Intent(this, NotesActivity::class.java)) }
+        val listBtn = button("ארכיון") { startActivity(Intent(this, NotesActivity::class.java)) }
         Ui.button(saveBtn, Ui.MINT, 20f, 60, 5)
         Ui.button(listBtn, Ui.WHITE, 15f, 60, 0)
         val row2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
