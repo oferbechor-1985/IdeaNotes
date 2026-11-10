@@ -95,7 +95,8 @@ class MainActivity : Activity() {
             Triple(Store.TYPE_EXPENSE, "💸 הוצאה", "למשל: 30 שקל עבור שוארמה / 10 דולר עבור קפה"),
             Triple(Store.TYPE_EVENT, "📅 אירוע", "למשל: מחר ב-16:00 פגישה עם דנה"),
             Triple(Store.TYPE_ALARM, "⏰ התראה", "למשל: כל יום ב-9 בבוקר לקחת תרופה / מחר ב-8 להתקשר לרופא"),
-            Triple(Store.TYPE_FEEDBACK, "🛠 שיפור", "מה לתקן או לשפר באפליקציה?")
+            Triple(Store.TYPE_FEEDBACK, "🛠 שיפור", "מה לתקן או לשפר באפליקציה?"),
+            Triple(AutoType.TYPE_SEARCH, "🔍 חיפוש", "מה לחפש בגוגל? (לא נשמר)")
         )
         val chips = mutableListOf<Pair<TextView, String>>()
         fun select(k: Triple<String, String, String>) {
@@ -104,7 +105,7 @@ class MainActivity : Activity() {
             for ((tv, t) in chips) Ui.chip(tv, t == type)
             updatePreview()
         }
-        // שתי שורות: 3 תגים למעלה, 2 למטה (עמודות שוות)
+        // שתי שורות של 3 תגים (עמודות שוות)
         val chipGrid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val chipRows = listOf(
             LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL },
@@ -122,8 +123,6 @@ class MainActivity : Activity() {
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
             ).apply { setMargins(dp(4), dp(4), dp(4), dp(6)) })
         }
-        // תא ריק בשורה השנייה, כדי ששני התגים יישארו באותו רוחב כמו למעלה
-        chipRows[1].addView(View(this), LinearLayout.LayoutParams(0, 0, 1f))
 
         root.addView(chipGrid)
         root.addView(input, LinearLayout.LayoutParams(
@@ -190,12 +189,16 @@ class MainActivity : Activity() {
         val (t, raw) = effective()
         val auto = type == Store.TYPE_NOTE && t != Store.TYPE_NOTE
         val fb = if (auto) " (תישמר כהערה רגילה)" else ""
-        if (t != Store.TYPE_EXPENSE && t != Store.TYPE_EVENT && t != Store.TYPE_ALARM && !(auto && (t == Store.TYPE_FEEDBACK || t == AutoType.TYPE_SEARCH))) {
+        if (t != Store.TYPE_EXPENSE && t != Store.TYPE_EVENT && t != Store.TYPE_ALARM && !(auto && t == Store.TYPE_FEEDBACK) && t != AutoType.TYPE_SEARCH) {
             preview.visibility = View.GONE
             return
         }
         preview.visibility = View.VISIBLE
         if (t == AutoType.TYPE_SEARCH) {
+            if (raw.isBlank() && !auto) {
+                preview.visibility = View.GONE
+                return
+            }
             preview.text = if (raw.isBlank()) "⚠ כתוב מה לחפש אחרי המילה$fb" else "🔍 חיפוש בגוגל  ·  " + raw.take(60)
             return
         }
@@ -458,6 +461,10 @@ class MainActivity : Activity() {
             }
         }
         if (type == AutoType.TYPE_SEARCH) {
+            if (text.isEmpty()) {
+                Toast.makeText(this, "כתוב מה לחפש", Toast.LENGTH_SHORT).show()
+                return
+            }
             googleSearch(text)
             return
         }
