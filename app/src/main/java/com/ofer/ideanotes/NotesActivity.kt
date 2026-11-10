@@ -38,7 +38,7 @@ class NotesActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        title = "ההערות שלי"
+        title = "ארכיון"
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -96,7 +96,7 @@ class NotesActivity : Activity() {
 
         val km = getSystemService(KeyguardManager::class.java)
         if (km.isDeviceSecure) {
-            val intent = km.createConfirmDeviceCredentialIntent("ההערות שלי", "אמת זהות כדי לצפות בהערות")
+            val intent = km.createConfirmDeviceCredentialIntent("ארכיון", "אמת זהות כדי לצפות בהערות")
             if (intent != null) startActivityForResult(intent, 10) else reload()
         } else {
             reload() // אין נעילת מסך במכשיר – אין מה לאמת
