@@ -29,7 +29,7 @@ object Ui {
     fun dp(c: Context, v: Int) = (v * c.resources.displayMetrics.density).toInt()
 
     /** מלבן מעוגל עם מסגרת כהה, ואם shadowDp > 0 גם צל קשיח לימין-למטה. */
-    fun box(c: Context, fill: Int, radiusDp: Int, shadowDp: Int = 0): Drawable {
+    fun box(c: Context, fill: Int, radiusDp: Int, shadowDp: Int = 0, shadowColor: Int = INK): Drawable {
         fun gd(color: Int, stroke: Boolean) = GradientDrawable().apply {
             cornerRadius = dp(c, radiusDp).toFloat()
             setColor(color)
@@ -38,7 +38,7 @@ object Ui {
         val front = gd(fill, true)
         if (shadowDp <= 0) return front
         val sh = dp(c, shadowDp)
-        return LayerDrawable(arrayOf<Drawable>(gd(INK, false), front)).apply {
+        return LayerDrawable(arrayOf<Drawable>(gd(shadowColor, false), front)).apply {
             setLayerInset(0, sh, sh, 0, 0)
             setLayerInset(1, 0, 0, sh, sh)
         }
@@ -72,8 +72,10 @@ object Ui {
         v.minHeight = 0
         v.minimumHeight = 0
         v.typeface = if (selected) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
-        val sh = if (selected) 3 else 0
-        v.background = box(c, if (selected) MINT else SKY_L, 40, sh)
+        // אותו גודל לכולם: לתג שלא נבחר יש מקום לצל, אבל הצל שקוף
+        val sh = 3
+        v.maxLines = 1
+        v.background = box(c, if (selected) MINT else SKY_L, 40, sh, if (selected) INK else Color.TRANSPARENT)
         v.setPadding(dp(c, padH), dp(c, padV), dp(c, padH) + dp(c, sh), dp(c, padV) + dp(c, sh))
     }
 

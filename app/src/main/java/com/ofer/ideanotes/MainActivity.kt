@@ -91,12 +91,12 @@ class MainActivity : Activity() {
 
         // בורר סוג: הערה / הוצאה / שיפור לאפליקציה
         val kinds = listOf(
-            Triple(Store.TYPE_NOTE, "📝 הערה", "מה הרעיון?"),
-            Triple(Store.TYPE_EXPENSE, "💸 הוצאה", "למשל: 30 שקל עבור שוארמה / 10 דולר עבור קפה"),
-            Triple(Store.TYPE_EVENT, "📅 אירוע", "למשל: מחר ב-16:00 פגישה עם דנה"),
-            Triple(Store.TYPE_ALARM, "⏰ התראה", "למשל: כל יום ב-9 בבוקר לקחת תרופה / מחר ב-8 להתקשר לרופא"),
-            Triple(Store.TYPE_FEEDBACK, "🛠 שיפור", "מה לתקן או לשפר באפליקציה?"),
-            Triple(AutoType.TYPE_SEARCH, "🔍 חיפוש", "מה לחפש בגוגל? (לא נשמר)")
+            Triple(Store.TYPE_NOTE, "הערה", "מה הרעיון?"),
+            Triple(Store.TYPE_EXPENSE, "הוצאה", "למשל: 30 שקל עבור שוארמה / 10 דולר עבור קפה"),
+            Triple(Store.TYPE_EVENT, "אירוע", "למשל: מחר ב-16:00 פגישה עם דנה"),
+            Triple(Store.TYPE_ALARM, "התראה", "למשל: כל יום ב-9 בבוקר לקחת תרופה / מחר ב-8 להתקשר לרופא"),
+            Triple(Store.TYPE_FEEDBACK, "שיפור", "מה לתקן או לשפר באפליקציה?"),
+            Triple(AutoType.TYPE_SEARCH, "חיפוש", "מה לחפש בגוגל? (לא נשמר)")
         )
         val chips = mutableListOf<Pair<TextView, String>>()
         fun select(k: Triple<String, String, String>) {
