@@ -332,8 +332,15 @@ class MainActivity : Activity() {
             val spoken = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
             if (!spoken.isNullOrBlank()) {
                 val cur = input.text.toString()
-                input.setText(if (cur.isBlank()) spoken else "$cur $spoken")
+                val stripped = AutoType.stripSaveCommand(spoken)
+                val add = stripped ?: spoken
+                input.setText(if (cur.isBlank()) add else if (add.isBlank()) cur else "$cur $add")
                 input.setSelection(input.text.length)
+                // "...שמור" בסוף ההכתבה = שמירה אוטומטית, בלי לחיצה על הכפתור
+                if (stripped != null) {
+                    if (input.text.isNotBlank() || audioFile != null) save()
+                    else Toast.makeText(this, "אין מה לשמור", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }

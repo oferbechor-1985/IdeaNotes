@@ -11,6 +11,14 @@ object AutoType {
 
     data class Detected(val type: String, val rest: String)
 
+    private val saveCmd = Regex("^(.*?)(?:^|[\\s,.\\-])(?:שמור|תשמור)[\\s.!]*$", RegexOption.DOT_MATCHES_ALL)
+
+    /** אם ההכתבה מסתיימת במילה "שמור": מחזיר את הטקסט בלעדיה (אפשר ריק). אחרת null. */
+    fun stripSaveCommand(spoken: String): String? {
+        val m = saveCmd.find(spoken.trim()) ?: return null
+        return m.groupValues[1].trim().trimEnd(',', '.', '-', ' ')
+    }
+
     private val words = mapOf(
         "הערה" to Store.TYPE_NOTE,
         "הוצאה" to Store.TYPE_EXPENSE,
