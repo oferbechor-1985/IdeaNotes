@@ -34,11 +34,29 @@ object EventParser {
         "שבת" to DayOfWeek.SATURDAY
     )
 
+    // משכי זמן מורכבים (בסדר מהארוך לקצר): "שלושת רבעי שעה", "שעה ורבע", "שעתיים וחצי"...
+    private const val HOURS_ALT =
+        "(?:שלושת|שלושה)\\s+רבעי\\s+שעה|רבע\\s+שעה|חצי\\s+שעה|שעה\\s+וחצי|שעה\\s+ורבע|שעתיים\\s+וחצי|שעתיים\\s+ורבע|שעתיים|שעה"
+
+    /** כמה דקות במשך מורכב כזה (null אם זה לא אחד מהם). */
+    private fun compoundMinutes(s: String): Int? = when {
+        Regex("(?:שלושת|שלושה)\\s+רבעי\\s+שעה").containsMatchIn(s) -> 45
+        Regex("רבע\\s+שעה").containsMatchIn(s) -> 15
+        Regex("חצי\\s+שעה").containsMatchIn(s) -> 30
+        Regex("שעה\\s+וחצי").containsMatchIn(s) -> 90
+        Regex("שעה\\s+ורבע").containsMatchIn(s) -> 75
+        Regex("שעתיים\\s+וחצי").containsMatchIn(s) -> 150
+        Regex("שעתיים\\s+ורבע").containsMatchIn(s) -> 135
+        Regex("שעתיים").containsMatchIn(s) -> 120
+        Regex("שעה").containsMatchIn(s) -> 60
+        else -> null
+    }
+
     private val durationRe = Regex(
-        "(?<![\\p{L}])למשך\\s+(?:(\\d+)\\s*(שעות|שעה|דקות|דקה)|חצי\\s+שעה|שעה\\s+וחצי|שעתיים|שעה)"
+        "(?<![\\p{L}])למשך\\s+(?:(\\d+)\\s*(שעות|שעה|דקות|דקה)|$HOURS_ALT)"
     )
     private val relativeRe = Regex(
-        "(?<![\\p{L}])ב?עוד\\s+(?:(\\d+)\\s*(דקות|דקה|שעות|שעה|ימים|יום|שבועות|שבוע)|חצי\\s+שעה|שעתיים|שעה|יומיים|יום|שבועיים|שבוע)"
+        "(?<![\\p{L}])ב?עוד\\s+(?:(\\d+)\\s*(דקות|דקה|שעות|שעה|ימים|יום|שבועות|שבוע)|$HOURS_ALT|יומיים|יום|שבועיים|שבוע)"
     )
     private val keywordDateRe = Regex("(?<![\\p{L}])ל?(מחרתיים|מחר|היום)(?![\\p{L}])")
     private val weekdayRe = Regex(
@@ -105,13 +123,7 @@ object EventParser {
                 val n = num.toInt()
                 if (m.groupValues[2].startsWith("שע")) n * 60 else n
             } else {
-                val s = m.value.replace(Regex("\\s+"), " ")
-                when {
-                    "שעה וחצי" in s -> 90
-                    "חצי שעה" in s -> 30
-                    "שעתיים" in s -> 120
-                    else -> 60
-                }
+                compoundMinutes(m.value) ?: 60
             }
             consume(m)
         }
@@ -132,10 +144,9 @@ object EventParser {
                 }
             } else {
                 val s = m.value.replace(Regex("\\s+"), " ")
+                val cm = compoundMinutes(s)
                 when {
-                    "חצי שעה" in s -> minutes = 30
-                    "שעתיים" in s -> minutes = 120
-                    "שעה" in s -> minutes = 60
+                    cm != null -> minutes = cm.toLong()
                     "יומיים" in s -> days = 2
                     "שבועיים" in s -> days = 14
                     "שבוע" in s -> days = 7
