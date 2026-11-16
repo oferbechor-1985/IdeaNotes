@@ -90,6 +90,13 @@ class NotesActivity : Activity() {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { setMargins(dp(4), dp(8), dp(4), dp(4)) })
 
+        val aliasBtn = Button(this).apply { setOnClickListener { showAliases() } }
+        aliasBtn.text = "כינויים לאנשי קשר"
+        Ui.button(aliasBtn, Ui.WHITE, 14f, 44, 0)
+        root.addView(aliasBtn, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(dp(4), dp(4), dp(4), dp(4)) })
+
         setContentView(root)
 
         list.setOnItemClickListener { _, _, i, _ -> showNote(shown[i]) }
@@ -109,6 +116,30 @@ class NotesActivity : Activity() {
         if (requestCode == 10) {
             if (resultCode == RESULT_OK) reload() else finish()
         }
+    }
+
+    /** רשימת הכינויים שהוגדרו (לאה = אמא...); לחיצה מוחקת. */
+    private fun showAliases() {
+        val items = Aliases.all(this)
+        if (items.isEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle("כינויים לאנשי קשר")
+                .setMessage("עוד אין כינויים. כשתכתוב \"הודעה ל...\" ולא יימצא איש קשר בשם הזה, תוכל לבחור איש קשר והכינוי יישמר כאן.")
+                .setPositiveButton("סגור", null)
+                .show()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("כינויים (לחיצה מוחקת)")
+            .setItems(items.map { it.label() + "  ←  " + it.name }.toTypedArray()) { _, i ->
+                AlertDialog.Builder(this)
+                    .setMessage("למחוק את הכינוי \"" + items[i].label() + "\"?")
+                    .setPositiveButton("מחק") { _, _ -> Aliases.remove(this, items[i]) }
+                    .setNegativeButton("ביטול", null)
+                    .show()
+            }
+            .setNegativeButton("סגור", null)
+            .show()
     }
 
     private fun reload() {

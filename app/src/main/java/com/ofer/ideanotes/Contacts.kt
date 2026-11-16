@@ -55,7 +55,24 @@ object Contacts {
         return best to numbers
     }
 
+    /** כל אנשי הקשר עם מספר: (שם, מספר ווטסאפ), מספר אחד לשם (נייד אם יש), ממוין. לבחירה ידנית. */
+    fun all(c: Context): List<Pair<String, String>> {
+        val rows = query(c, listOf(""))
+        return rows.groupBy { it.name }.map { (name, rs) ->
+            val r = rs.firstOrNull { it.isMobile } ?: rs.first()
+            name to r.number
+        }.sortedBy { it.first }
+    }
+
     fun resolve(c: Context, text: String): Resolved? {
+        // כינוי שהוגדר (למשל "לאה" = אמא) קודם לחיפוש רגיל; שם ארוך יותר גובר
+        val viaAlias = MessageParser.splits(text)
+            .mapNotNull { s -> Aliases.find(c, MessageParser.nameVariants(s.name))?.let { s to it } }
+            .maxByOrNull { it.first.name.length }
+        if (viaAlias != null) {
+            val (s, e) = viaAlias
+            return Resolved(e.name, listOf(e.name to e.number), s.body)
+        }
         val found = MessageParser.splits(text).mapNotNull { s -> find(c, s.name)?.let { Triple(s, it.first, it.second) } }
         if (found.isEmpty()) return null
         // עדיפות: התאמה מדויקת (גם אם השם ארוך יותר), אחרת הדרגה הטובה ביותר, ובשוויון השם הקצר

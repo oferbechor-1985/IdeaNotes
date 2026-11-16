@@ -209,7 +209,7 @@ class MainActivity : Activity() {
                     preview.text = "💬 הודעה בווטסאפ  ·  בשמירה תתבקש הרשאה לאנשי קשר"
                 else -> {
                     val r = Contacts.resolve(this, raw)
-                    preview.text = if (r == null) "⚠ לא נמצא איש קשר או הודעה$fb"
+                    preview.text = if (r == null) "⚠ לא נמצא איש קשר, בשמירה תוכל לבחור ולהגדיר כינוי"
                     else "💬 " + r.name + (if (r.numbers.size > 1) " (ועוד " + (r.numbers.size - 1) + " מספרים)" else "") +
                         "  ·  " + r.body.take(50)
                 }
@@ -379,11 +379,11 @@ class MainActivity : Activity() {
         }
         val r = Contacts.resolve(this, text)
         if (r == null) {
-            if (auto) {
-                forceNote = true // לא זוהה נמען: נשמר כהערה רגילה עם הטקסט המלא
-                save()
+            val split = MessageParser.splits(text).firstOrNull()
+            if (split == null) {
+                Toast.makeText(this, "כתוב: הודעה לשם, ואז ההודעה", Toast.LENGTH_LONG).show()
             } else {
-                Toast.makeText(this, "לא נמצא איש קשר. כתוב: הודעה לשם, ואז ההודעה", Toast.LENGTH_LONG).show()
+                pickContact(split, auto)
             }
             return
         }
@@ -397,6 +397,56 @@ class MainActivity : Activity() {
             .setItems(labels) { _, i -> openWhatsApp(r.numbers[i].second, r.body) }
             .setNegativeButton("ביטול", null)
             .show()
+    }
+
+    /** לא נמצא איש קשר בשם שנאמר: בוחרים ידנית מהרשימה, והבחירה נזכרת ככינוי להבא. */
+    private fun pickContact(split: MessageParser.Split, auto: Boolean) {
+        val all = Contacts.all(this)
+        if (all.isEmpty()) {
+            Toast.makeText(this, "לא נמצאו אנשי קשר עם מספר טלפון", Toast.LENGTH_LONG).show()
+            return
+        }
+        val said = MessageParser.nameVariants(split.name).last()
+        var shown = all
+        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_list_item_1, all.map { it.first }.toMutableList())
+        val search = EditText(this).apply {
+            hint = "חיפוש"
+            isSingleLine = true
+        }
+        val listView = android.widget.ListView(this).apply { this.adapter = adapter }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), 0)
+            addView(search)
+            addView(listView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(320)))
+        }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val q = MessageParser.norm(s?.toString() ?: "")
+                shown = all.filter { q.isEmpty() || MessageParser.norm(it.first).contains(q) }
+                adapter.clear()
+                adapter.addAll(shown.map { it.first })
+            }
+        })
+        val b = AlertDialog.Builder(this)
+            .setTitle("לא נמצא \"" + said + "\". מי זה?")
+            .setView(box)
+            .setNegativeButton("ביטול", null)
+        if (auto) b.setNeutralButton("שמור כהערה") { _, _ ->
+            forceNote = true
+            save()
+        }
+        val dialog = b.create()
+        listView.setOnItemClickListener { _, _, i, _ ->
+            val (name, number) = shown[i]
+            Aliases.add(this, MessageParser.nameVariants(split.name), name, number)
+            Toast.makeText(this, "נזכר: " + said + " = " + name, Toast.LENGTH_SHORT).show()
+            dialog.dismiss()
+            openWhatsApp(number, split.body)
+        }
+        dialog.show()
     }
 
     /** פותח את שיחת הווטסאפ עם ההודעה כתובה; נשאר ללחוץ על שליחה. */
