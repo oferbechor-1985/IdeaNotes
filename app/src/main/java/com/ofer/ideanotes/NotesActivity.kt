@@ -97,6 +97,13 @@ class NotesActivity : Activity() {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { setMargins(dp(4), dp(4), dp(4), dp(4)) })
 
+        val sendBtn = Button(this).apply { setOnClickListener { showAutoSend() } }
+        sendBtn.text = "שליחה אוטומטית בווטסאפ"
+        Ui.button(sendBtn, Ui.WHITE, 14f, 44, 0)
+        root.addView(sendBtn, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(dp(4), dp(4), dp(4), dp(4)) })
+
         setContentView(root)
 
         list.setOnItemClickListener { _, _, i, _ -> showNote(shown[i]) }
@@ -116,6 +123,39 @@ class NotesActivity : Activity() {
         if (requestCode == 10) {
             if (resultCode == RESULT_OK) reload() else finish()
         }
+    }
+
+    /** מצב השליחה האוטומטית בווטסאפ + איך מפעילים (שירות נגישות). */
+    private fun showAutoSend() {
+        val b = AlertDialog.Builder(this).setTitle("שליחה אוטומטית בווטסאפ")
+        if (!AutoSend.serviceEnabled(this)) {
+            b.setMessage(
+                "כרגע כבויה: אחרי \"הודעה לאמא, ... שמור\" ווטסאפ נפתח וצריך ללחוץ על שלח.\n\n" +
+                    "להפעלה:\n1. לחץ \"פתח הגדרות נגישות\".\n2. אפליקציות מותקנות ← רעיונות ← הפעל.\n\n" +
+                    "אם ההפעלה חסומה (\"הגדרה מוגבלת\"): לחץ \"מידע על האפליקציה\", בתפריט ⋮ בחר " +
+                    "\"אפשר הגדרות מוגבלות\", וחזור לשלב 1.\n\n" +
+                    "השירות פועל רק בחלונות של ווטסאפ ורק ברגע ששלחת הודעה דרך האפליקציה."
+            )
+                .setPositiveButton("פתח הגדרות נגישות") { _, _ ->
+                    startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                }
+                .setNeutralButton("מידע על האפליקציה") { _, _ ->
+                    startActivity(
+                        Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                            .setData(android.net.Uri.parse("package:" + packageName))
+                    )
+                }
+                .setNegativeButton("סגור", null)
+        } else {
+            val on = AutoSend.switchOn(this)
+            b.setMessage(
+                if (on) "פעילה: הודעה שנפתחת דרך \"הודעה לשם, ...\" נשלחת לבד."
+                else "שירות הנגישות מופעל, אבל המתג באפליקציה כבוי: צריך ללחוץ על שלח בעצמך."
+            )
+                .setPositiveButton(if (on) "כבה" else "הפעל") { _, _ -> AutoSend.setSwitch(this, !on) }
+                .setNegativeButton("סגור", null)
+        }
+        b.show()
     }
 
     /** רשימת הכינויים שהוגדרו (לאה = אמא...); לחיצה מוחקת. */

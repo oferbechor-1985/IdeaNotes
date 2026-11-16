@@ -14,7 +14,7 @@ object AutoType {
 
     data class Detected(val type: String, val rest: String)
 
-    private val saveCmd = Regex("^(.*?)(?:^|[\\s,.\\-])(?:שמור|תשמור)[\\s.!]*$", RegexOption.DOT_MATCHES_ALL)
+    private val saveCmd = Regex("^(.*?)(?:^|[\\s,.\\-])(?:שמור|תשמור|לשמור)[\\s.!]*$", RegexOption.DOT_MATCHES_ALL)
 
     /** אם ההכתבה מסתיימת במילה "שמור": מחזיר את הטקסט בלעדיה (אפשר ריק). אחרת null. */
     fun stripSaveCommand(spoken: String): String? {

@@ -211,7 +211,7 @@ class MainActivity : Activity() {
                     val r = Contacts.resolve(this, raw)
                     preview.text = if (r == null) "⚠ לא נמצא איש קשר, בשמירה תוכל לבחור ולהגדיר כינוי"
                     else "💬 " + r.name + (if (r.numbers.size > 1) " (ועוד " + (r.numbers.size - 1) + " מספרים)" else "") +
-                        "  ·  " + r.body.take(50)
+                        "  ·  " + r.body.take(50) + (if (AutoSend.enabled(this)) "  ·  ⚡ יישלח אוטומטית" else "")
                 }
             }
             return
@@ -502,6 +502,7 @@ class MainActivity : Activity() {
         val uri = android.net.Uri.parse("https://wa.me/" + number + "?text=" + android.net.Uri.encode(body))
         for (pkg in listOf("com.whatsapp", "com.whatsapp.w4b", null)) {
             try {
+                if (AutoSend.enabled(this)) AutoSend.arm() // שירות הנגישות ילחץ על "שלח"
                 startActivity(Intent(Intent.ACTION_VIEW, uri).apply { if (pkg != null) setPackage(pkg) })
                 finish()
                 return
