@@ -391,26 +391,28 @@ class MainActivity : Activity() {
             openWhatsApp(r.numbers[0].second, r.body)
             return
         }
-        val labels = r.numbers.map { it.first + "  ·  +" + it.second }.toTypedArray()
-        AlertDialog.Builder(this)
-            .setTitle("למי לשלוח?")
-            .setItems(labels) { _, i -> openWhatsApp(r.numbers[i].second, r.body) }
-            .setNegativeButton("ביטול", null)
-            .show()
+        // כמה התאמות: בוחרים מהן, או מחפשים באנשי קשר אחרים; הבחירה נזכרת ככינוי
+        pickContact(MessageParser.Split(r.spoken, r.body), auto, r.numbers)
     }
 
-    /** לא נמצא איש קשר בשם שנאמר: בוחרים ידנית מהרשימה, והבחירה נזכרת ככינוי להבא. */
-    private fun pickContact(split: MessageParser.Split, auto: Boolean) {
-        val all = Contacts.all(this)
-        if (all.isEmpty()) {
+    private data class Pick(val label: String, val name: String, val number: String)
+
+    /**
+     * בחירת איש קשר: אם יש כמה התאמות (candidates) הן מוצגות קודם; שורת החיפוש מחפשת בכל אנשי הקשר.
+     * מה שנבחר נשמר ככינוי למה שנאמר, וההודעה נפתחת בווטסאפ.
+     */
+    private fun pickContact(split: MessageParser.Split, auto: Boolean, candidates: List<Pair<String, String>>? = null) {
+        val all = Contacts.all(this).map { Pick(it.first, it.first, it.second) }
+        if (all.isEmpty() && candidates == null) {
             Toast.makeText(this, "לא נמצאו אנשי קשר עם מספר טלפון", Toast.LENGTH_LONG).show()
             return
         }
+        val initial = candidates?.map { Pick(it.first + "  ·  +" + it.second, it.first, it.second) } ?: all
         val said = MessageParser.nameVariants(split.name).last()
-        var shown = all
-        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_list_item_1, all.map { it.first }.toMutableList())
+        var shown = initial
+        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_list_item_1, initial.map { it.label }.toMutableList())
         val search = EditText(this).apply {
-            hint = "חיפוש"
+            hint = if (candidates != null) "חיפוש באנשי קשר אחרים" else "חיפוש"
             isSingleLine = true
         }
         val listView = android.widget.ListView(this).apply { this.adapter = adapter }
@@ -425,26 +427,26 @@ class MainActivity : Activity() {
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun afterTextChanged(s: Editable?) {
                 val q = MessageParser.norm(s?.toString() ?: "")
-                shown = all.filter { q.isEmpty() || MessageParser.norm(it.first).contains(q) }
+                shown = if (q.isEmpty()) initial else all.filter { MessageParser.norm(it.name).contains(q) }
                 adapter.clear()
-                adapter.addAll(shown.map { it.first })
+                adapter.addAll(shown.map { it.label })
             }
         })
         val b = AlertDialog.Builder(this)
-            .setTitle("לא נמצא \"" + said + "\". מי זה?")
+            .setTitle(if (candidates != null) "למי לשלוח \"" + said + "\"?" else "לא נמצא \"" + said + "\". מי זה?")
             .setView(box)
             .setNegativeButton("ביטול", null)
-        if (auto) b.setNeutralButton("שמור כהערה") { _, _ ->
+        if (auto && candidates == null) b.setNeutralButton("שמור כהערה") { _, _ ->
             forceNote = true
             save()
         }
         val dialog = b.create()
         listView.setOnItemClickListener { _, _, i, _ ->
-            val (name, number) = shown[i]
-            Aliases.add(this, MessageParser.nameVariants(split.name), name, number)
-            Toast.makeText(this, "נזכר: " + said + " = " + name, Toast.LENGTH_SHORT).show()
+            val p = shown[i]
+            Aliases.add(this, MessageParser.nameVariants(split.name), p.name, p.number)
+            Toast.makeText(this, "נזכר: " + said + " = " + p.name, Toast.LENGTH_SHORT).show()
             dialog.dismiss()
-            openWhatsApp(number, split.body)
+            openWhatsApp(p.number, split.body)
         }
         dialog.show()
     }

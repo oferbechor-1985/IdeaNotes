@@ -9,7 +9,7 @@ import android.provider.ContactsContract
 object Contacts {
 
     /** נמען שנמצא: שם להצגה, רשימת (שם, מספר בפורמט ווטסאפ), וגוף ההודעה. */
-    data class Resolved(val name: String, val numbers: List<Pair<String, String>>, val body: String)
+    data class Resolved(val name: String, val numbers: List<Pair<String, String>>, val body: String, val spoken: String = "")
 
     private data class Row(val name: String, val number: String, val isMobile: Boolean)
 
@@ -71,7 +71,7 @@ object Contacts {
             .maxByOrNull { it.first.name.length }
         if (viaAlias != null) {
             val (s, e) = viaAlias
-            return Resolved(e.name, listOf(e.name to e.number), s.body)
+            return Resolved(e.name, listOf(e.name to e.number), s.body, s.name)
         }
         val found = MessageParser.splits(text).mapNotNull { s -> find(c, s.name)?.let { Triple(s, it.first, it.second) } }
         if (found.isEmpty()) return null
@@ -80,6 +80,6 @@ object Contacts {
         val pick = if (exact.isNotEmpty()) exact.maxByOrNull { it.first.name.length }!!
         else found.minWithOrNull(compareBy({ it.second }, { it.first.name.length }))!!
         val names = pick.third.map { it.first }.distinct()
-        return Resolved(names.first(), pick.third, pick.first.body)
+        return Resolved(names.first(), pick.third, pick.first.body, pick.first.name)
     }
 }
