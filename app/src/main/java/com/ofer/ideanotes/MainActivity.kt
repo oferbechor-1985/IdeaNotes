@@ -397,18 +397,26 @@ class MainActivity : Activity() {
 
     private data class Pick(val label: String, val name: String, val number: String)
 
+    private var pickRefresh: (() -> Unit)? = null
+
+    override fun onResume() {
+        super.onResume()
+        // חזרה מאפליקציית אנשי הקשר (אחרי הוספת איש קשר): מרעננים את הרשימה הפתוחה
+        pickRefresh?.invoke()
+    }
+
     /**
      * בחירת איש קשר: אם יש כמה התאמות (candidates) הן מוצגות קודם; שורת החיפוש מחפשת בכל אנשי הקשר.
-     * מה שנבחר נשמר ככינוי למה שנאמר, וההודעה נפתחת בווטסאפ.
+     * מה שנבחר נשמר ככינוי למה שנאמר, וההודעה נפתחת בווטסאפ. השורה הראשונה פותחת את הבחירה בתוך
+     * ווטסאפ (לקבוצות ולצ'אטים שאינם אנשי קשר) ולא נשמרת ככינוי.
      */
     private fun pickContact(split: MessageParser.Split, auto: Boolean, candidates: List<Pair<String, String>>? = null) {
-        val all = Contacts.all(this).map { Pick(it.first, it.first, it.second) }
-        if (all.isEmpty() && candidates == null) {
-            Toast.makeText(this, "לא נמצאו אנשי קשר עם מספר טלפון", Toast.LENGTH_LONG).show()
-            return
-        }
-        val initial = candidates?.map { Pick(it.first + "  ·  +" + it.second, it.first, it.second) } ?: all
+        fun load() = Contacts.all(this).map { Pick(it.first, it.first, it.second) }
+        var all = load()
+        val shareRow = Pick("📤 קבוצה או צ'אט אחר (בוחרים בתוך ווטסאפ)", "", "")
         val said = MessageParser.nameVariants(split.name).last()
+        val initial = listOf(shareRow) +
+            (candidates?.map { Pick(it.first + "  ·  +" + it.second, it.first, it.second) } ?: all)
         var shown = initial
         val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_list_item_1, initial.map { it.label }.toMutableList())
         val search = EditText(this).apply {
@@ -422,33 +430,71 @@ class MainActivity : Activity() {
             addView(search)
             addView(listView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(320)))
         }
+        fun refilter() {
+            val q = MessageParser.norm(search.text?.toString() ?: "")
+            shown = if (q.isEmpty() && candidates != null) initial
+            else listOf(shareRow) + all.filter { q.isEmpty() || MessageParser.norm(it.name).contains(q) }
+            adapter.clear()
+            adapter.addAll(shown.map { it.label })
+        }
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-            override fun afterTextChanged(s: Editable?) {
-                val q = MessageParser.norm(s?.toString() ?: "")
-                shown = if (q.isEmpty()) initial else all.filter { MessageParser.norm(it.name).contains(q) }
-                adapter.clear()
-                adapter.addAll(shown.map { it.label })
-            }
+            override fun afterTextChanged(s: Editable?) = refilter()
         })
         val b = AlertDialog.Builder(this)
             .setTitle(if (candidates != null) "למי לשלוח \"" + said + "\"?" else "לא נמצא \"" + said + "\". מי זה?")
             .setView(box)
             .setNegativeButton("ביטול", null)
-        if (auto && candidates == null) b.setNeutralButton("שמור כהערה") { _, _ ->
+            .setNeutralButton("איש קשר חדש", null) // מאזין משלו למטה, כדי שהחלון לא ייסגר
+        if (auto && candidates == null) b.setPositiveButton("שמור כהערה") { _, _ ->
             forceNote = true
             save()
         }
         val dialog = b.create()
+        dialog.setOnDismissListener { pickRefresh = null }
         listView.setOnItemClickListener { _, _, i, _ ->
             val p = shown[i]
+            dialog.dismiss()
+            if (p === shareRow) {
+                shareToWhatsApp(split.body)
+                return@setOnItemClickListener
+            }
             Aliases.add(this, MessageParser.nameVariants(split.name), p.name, p.number)
             Toast.makeText(this, "נזכר: " + said + " = " + p.name, Toast.LENGTH_SHORT).show()
-            dialog.dismiss()
             openWhatsApp(p.number, split.body)
         }
         dialog.show()
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+            try {
+                startActivity(
+                    Intent(Intent.ACTION_INSERT, android.provider.ContactsContract.Contacts.CONTENT_URI)
+                        .putExtra(android.provider.ContactsContract.Intents.Insert.NAME, said)
+                )
+            } catch (e: ActivityNotFoundException) {
+                Toast.makeText(this, "לא נמצאה אפליקציית אנשי קשר", Toast.LENGTH_LONG).show()
+            }
+        }
+        pickRefresh = {
+            all = load()
+            refilter()
+        }
+    }
+
+    /** פותח את הבחירה בתוך ווטסאפ (אנשי קשר וקבוצות) עם ההודעה כתובה; בוחרים ושולחים שם. */
+    private fun shareToWhatsApp(body: String) {
+        for (pkg in listOf("com.whatsapp", "com.whatsapp.w4b")) {
+            try {
+                startActivity(
+                    Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, body).setPackage(pkg)
+                )
+                finish()
+                return
+            } catch (e: ActivityNotFoundException) {
+                // ננסה את הבא
+            }
+        }
+        Toast.makeText(this, "ווטסאפ לא מותקן", Toast.LENGTH_LONG).show()
     }
 
     /** פותח את שיחת הווטסאפ עם ההודעה כתובה; נשאר ללחוץ על שליחה. */
