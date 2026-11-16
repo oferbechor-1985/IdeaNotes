@@ -9,6 +9,9 @@ object AutoType {
     /** חיפוש בגוגל: לא סוג שנשמר, רק קיצור שפותח את הדפדפן. */
     const val TYPE_SEARCH = "search"
 
+    /** הודעה בווטסאפ לאיש קשר: גם לא נשמרת כהערה. */
+    const val TYPE_MESSAGE = "message"
+
     data class Detected(val type: String, val rest: String)
 
     private val saveCmd = Regex("^(.*?)(?:^|[\\s,.\\-])(?:שמור|תשמור)[\\s.!]*$", RegexOption.DOT_MATCHES_ALL)
@@ -25,7 +28,8 @@ object AutoType {
         "אירוע" to Store.TYPE_EVENT,
         "התראה" to Store.TYPE_ALARM,
         "שיפור" to Store.TYPE_FEEDBACK,
-        "חיפוש" to TYPE_SEARCH
+        "חיפוש" to TYPE_SEARCH,
+        "הודעה" to TYPE_MESSAGE
     )
 
     // אחרי המילה חייב לבוא מפריד (פסיק, נקודתיים, מקף, רווח) או סוף הטקסט

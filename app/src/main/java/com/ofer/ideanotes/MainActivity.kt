@@ -98,7 +98,8 @@ class MainActivity : Activity() {
             Triple(Store.TYPE_EVENT, "אירוע", "למשל: מחר ב-16:00 פגישה עם דנה"),
             Triple(Store.TYPE_ALARM, "התראה", "למשל: כל יום ב-9 בבוקר לקחת תרופה / מחר ב-8 להתקשר לרופא"),
             Triple(Store.TYPE_FEEDBACK, "שיפור", "מה לתקן או לשפר באפליקציה?"),
-            Triple(AutoType.TYPE_SEARCH, "חיפוש", "מה לחפש בגוגל? (לא נשמר)")
+            Triple(AutoType.TYPE_SEARCH, "חיפוש", "מה לחפש בגוגל? (לא נשמר)"),
+            Triple(AutoType.TYPE_MESSAGE, "הודעה", "הודעה בווטסאפ: לאמא, תבואי בשלוש")
         )
         val chips = mutableListOf<Pair<TextView, String>>()
         fun select(k: Triple<String, String, String>) {
@@ -107,7 +108,7 @@ class MainActivity : Activity() {
             for ((tv, t) in chips) Ui.chip(tv, t == type)
             updatePreview()
         }
-        // שתי שורות של 3 תגים (עמודות שוות)
+        // שתי שורות (4 + 3), עמודות שוות
         val chipGrid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val chipRows = listOf(
             LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL },
@@ -121,7 +122,7 @@ class MainActivity : Activity() {
                 setOnClickListener { select(k) }
             }
             chips.add(tv to k.first)
-            chipRows[if (idx < 3) 0 else 1].addView(tv, LinearLayout.LayoutParams(
+            chipRows[if (idx < 4) 0 else 1].addView(tv, LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
             ).apply { setMargins(dp(4), dp(4), dp(4), dp(6)) })
         }
@@ -180,6 +181,7 @@ class MainActivity : Activity() {
     /** הסוג בפועל: אם נבחרה "הערה" והטקסט פותח במילת סוג (אירוע, התראה...) – הסוג הזה והטקסט בלעדיה. */
     private fun effective(): Pair<String, String> {
         val raw = input.text.toString()
+        if (forceNote) return Store.TYPE_NOTE to raw
         if (type == Store.TYPE_NOTE) {
             val d = AutoType.detect(raw)
             if (d != null) return d.type to d.rest
@@ -187,15 +189,33 @@ class MainActivity : Activity() {
         return type to raw
     }
 
+    private var forceNote = false
+
     private fun updatePreview() {
         val (t, raw) = effective()
         val auto = type == Store.TYPE_NOTE && t != Store.TYPE_NOTE
         val fb = if (auto) " (תישמר כהערה רגילה)" else ""
-        if (t != Store.TYPE_EXPENSE && t != Store.TYPE_EVENT && t != Store.TYPE_ALARM && !(auto && t == Store.TYPE_FEEDBACK) && t != AutoType.TYPE_SEARCH) {
+        if (t != Store.TYPE_EXPENSE && t != Store.TYPE_EVENT && t != Store.TYPE_ALARM && !(auto && t == Store.TYPE_FEEDBACK) && t != AutoType.TYPE_SEARCH && t != AutoType.TYPE_MESSAGE) {
             preview.visibility = View.GONE
             return
         }
         preview.visibility = View.VISIBLE
+        if (t == AutoType.TYPE_MESSAGE) {
+            when {
+                raw.isBlank() -> {
+                    if (auto) preview.text = "⚠ כתוב: הודעה לשם, ואז את ההודעה$fb" else preview.visibility = View.GONE
+                }
+                !Contacts.hasPermission(this) ->
+                    preview.text = "💬 הודעה בווטסאפ  ·  בשמירה תתבקש הרשאה לאנשי קשר"
+                else -> {
+                    val r = Contacts.resolve(this, raw)
+                    preview.text = if (r == null) "⚠ לא נמצא איש קשר או הודעה$fb"
+                    else "💬 " + r.name + (if (r.numbers.size > 1) " (ועוד " + (r.numbers.size - 1) + " מספרים)" else "") +
+                        "  ·  " + r.body.take(50)
+                }
+            }
+            return
+        }
         if (t == AutoType.TYPE_SEARCH) {
             if (raw.isBlank() && !auto) {
                 preview.visibility = View.GONE
@@ -300,6 +320,11 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(code, perms, results)
         if (code == 1 && results.firstOrNull() == PackageManager.PERMISSION_GRANTED) startRecording()
         else if (code == 1) Toast.makeText(this, "אין הרשאת הקלטה", Toast.LENGTH_SHORT).show()
+        if (code == 4) {
+            if (results.firstOrNull() == PackageManager.PERMISSION_GRANTED) save()
+            else Toast.makeText(this, "אין הרשאה לאנשי קשר", Toast.LENGTH_LONG).show()
+            return
+        }
         if (code == 3) {
             val p = pendingEvent ?: return
             pendingEvent = null
@@ -343,6 +368,50 @@ class MainActivity : Activity() {
                 }
             }
         }
+    }
+
+    // ---------- הודעה בווטסאפ (לא נשמרת) ----------
+
+    private fun sendMessage(text: String, auto: Boolean) {
+        if (!Contacts.hasPermission(this)) {
+            requestPermissions(arrayOf(Manifest.permission.READ_CONTACTS), 4)
+            return
+        }
+        val r = Contacts.resolve(this, text)
+        if (r == null) {
+            if (auto) {
+                forceNote = true // לא זוהה נמען: נשמר כהערה רגילה עם הטקסט המלא
+                save()
+            } else {
+                Toast.makeText(this, "לא נמצא איש קשר. כתוב: הודעה לשם, ואז ההודעה", Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+        if (r.numbers.size == 1) {
+            openWhatsApp(r.numbers[0].second, r.body)
+            return
+        }
+        val labels = r.numbers.map { it.first + "  ·  +" + it.second }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("למי לשלוח?")
+            .setItems(labels) { _, i -> openWhatsApp(r.numbers[i].second, r.body) }
+            .setNegativeButton("ביטול", null)
+            .show()
+    }
+
+    /** פותח את שיחת הווטסאפ עם ההודעה כתובה; נשאר ללחוץ על שליחה. */
+    private fun openWhatsApp(number: String, body: String) {
+        val uri = android.net.Uri.parse("https://wa.me/" + number + "?text=" + android.net.Uri.encode(body))
+        for (pkg in listOf("com.whatsapp", "com.whatsapp.w4b", null)) {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, uri).apply { if (pkg != null) setPackage(pkg) })
+                finish()
+                return
+            } catch (e: ActivityNotFoundException) {
+                // ננסה את הבא
+            }
+        }
+        Toast.makeText(this, "ווטסאפ לא מותקן", Toast.LENGTH_LONG).show()
     }
 
     // ---------- חיפוש בגוגל (לא נשמר) ----------
@@ -468,6 +537,10 @@ class MainActivity : Activity() {
                 type = Store.TYPE_NOTE
                 text = original
             }
+        }
+        if (type == AutoType.TYPE_MESSAGE) {
+            sendMessage(text, this.type == Store.TYPE_NOTE)
+            return
         }
         if (type == AutoType.TYPE_SEARCH) {
             if (text.isEmpty()) {
