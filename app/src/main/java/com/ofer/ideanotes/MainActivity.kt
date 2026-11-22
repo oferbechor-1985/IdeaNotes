@@ -685,7 +685,7 @@ class MainActivity : Activity() {
             return
         }
         Store.save(this, textToSave, audioFile, type, amount, origCur, origAmt, rate)
-        if (type == Store.TYPE_FEEDBACK) Feedback.flush(this)
+        if (type == Store.TYPE_FEEDBACK || type == Store.TYPE_NOTE) Feedback.flush(this)
         saved = true
         Toast.makeText(this, "נשמר ✓", Toast.LENGTH_SHORT).show()
         finish()

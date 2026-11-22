@@ -58,7 +58,7 @@ object Store {
                     "📅 " + (event?.start ?: date) + (if (event?.inCalendar == false) "  (לא נוסף ליומן)" else "") + mic,
                     first
                 )
-                else -> listOf(date + mic, tagLine, first)
+                else -> listOf(date + mic + when (sent) { true -> "  ✓ נשלח"; false -> "  ⏳ ממתין לשליחה"; else -> "" }, tagLine, first)
             }
             return lines.filter { it.isNotBlank() }.joinToString("\n")
         }
@@ -113,7 +113,7 @@ object Store {
             if (event.allDay) sb.append("כל היום: כן\n")
             sb.append("ביומן: ").append(if (event.inCalendar) "כן" else "לא").append('\n')
         }
-        if (type == TYPE_FEEDBACK) sb.append("נשלח: לא\n")
+        if (type == TYPE_FEEDBACK || type == TYPE_NOTE) sb.append("נשלח: לא\n")
         sb.append("תגיות: ").append(tags.joinToString(", ")).append('\n')
         if (audio != null) sb.append("שמע: ").append(audio.name).append('\n')
         sb.append("---\n").append(text)
@@ -212,7 +212,7 @@ object Store {
 
     /** הערות שיפור עם טקסט שעוד לא נשלחו (ישנות קודם). */
     fun pending(c: Context): List<Note> =
-        list(c).filter { it.type == TYPE_FEEDBACK && it.sent == false && it.body.isNotBlank() }
+        list(c).filter { (it.type == TYPE_FEEDBACK || it.type == TYPE_NOTE) && it.sent == false && it.body.isNotBlank() }
             .sortedBy { it.date }
 
     /** מסמן הערת שיפור כנשלחה, בכותרת הקובץ בלבד (לא נוגע בגוף ההערה). */

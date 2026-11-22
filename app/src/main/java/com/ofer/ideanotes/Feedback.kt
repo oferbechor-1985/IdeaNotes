@@ -24,7 +24,7 @@ object Feedback {
         Thread {
             synchronized(lock) {
                 for (n in Store.pending(c)) {
-                    val ok = try { send(c, n.body) } catch (e: Exception) { false }
+                    val ok = try { send(c, n.body, if (n.type == Store.TYPE_NOTE) "note" else "idea") } catch (e: Exception) { false }
                     if (!ok) break
                     try { Store.markSent(n.file) } catch (e: Exception) { break }
                 }
@@ -32,12 +32,12 @@ object Feedback {
         }.start()
     }
 
-    private fun send(c: Context, text: String): Boolean {
+    private fun send(c: Context, text: String, kind: String): Boolean {
         val dm = c.resources.displayMetrics
         val version = try { c.packageManager.getPackageInfo(c.packageName, 0).versionName ?: "" } catch (e: Exception) { "" }
         val body = JSONObject()
-            .put("text", text.trim().take(1500))
-            .put("kind", "idea")
+            .put("text", text.trim().take(if (kind == "note") 6000 else 1500))
+            .put("kind", kind)
             .put("voice", false)
             .put("version", version.take(10))
             .put("input", "touch")
